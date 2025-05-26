@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "fckloud"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+pnet.workspace = true
+local-ip-address.workspace = true
+
+ndhcp = { path = "../ndhcp" }

@@ -1,0 +1,19 @@
+[package]
+name = "ndhcp"
+edition.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/ndhcp.rs"
+
+[dependencies]
+pnet.workspace = true
+anyhow.workspace = true
+derive_more.workspace = true
+hyper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
