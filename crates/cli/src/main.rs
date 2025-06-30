@@ -1,5 +1,5 @@
-use clap::{Args, Parser, Subcommand};
-use local_ip_address;
+use anyhow::{Context, Result};
+use clap::{builder::Str, Args, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -42,52 +42,86 @@ impl Default for RunArgs {
 }
 
 #[derive(Args, Debug)]
-struct DryArgs {}
-
-impl Default for DryArgs {
-    fn default() -> Self {
-        Self {}
-    }
+struct DryArgs {
+    /// The current node name the controller is running on
+    #[arg(short='n', long="node")]
+    node: String
 }
 
-trait Action {
-    fn run(self, global: ArgsGlobal);
-}
+// impl Default for DryArgs {
+//     fn default() -> Self {
+//         Self {}
+//     }
+// }
 
-impl Action for DryArgs {
-    fn run(self, global: ArgsGlobal) {
+impl DryArgs {
+    #[tokio::main]
+    async fn run(self, global: ArgsGlobal) -> Result<()> {
         println!(
             "Hello from `dry` command; global={:?}, cmd={:?}",
             global, &self
         );
-        let ifaces = pnet::datalink::interfaces();
-        ndhcp::iface_report(&ifaces)
-            .iter()
-            .for_each(|item| println!("{item}"));
-        
-        println!("From crate local_ip_addresses");
-        
-        let result = local_ip_address::list_afinet_netifas().unwrap();
-        for (iface_name, addr) in result {
-            println!("{}/{}", iface_name, addr)
-        }
+        // let ifaces = pnet::datalink::interfaces();
+        ndhcp::resolve(-1)
+            .await?
+            .into_iter()
+            .for_each(|(item, status)| println!("{}: {}", item, status));
+
+        // let result = local_ip_address::list_afinet_netifas().unwrap();
+        // for (iface_name, addr) in result {
+        //     println!("{}/{}", iface_name, addr)
+        // }
+
+        let kube_manager = kubem::Manager::new(self.node).await?;
+        _ = kube_manager;
+        // println!("{}", kube_manager.version().await?);
+
+        Ok(())
     }
 }
 
-impl Action for RunArgs {
-    fn run(self, global: ArgsGlobal) {
+impl RunArgs {
+    fn run(self, global: ArgsGlobal) -> Result<()> {
         println!(
             "Hello from `run` command; global={:?}, cmd={:?}",
             global, &self
-        )
+        );
+
+        Ok(())
     }
 }
 
-fn main() {
+fn main_wrapped() -> Result<()> {
+    const LTF_KITCHEN: &'static str =
+        "[hour padding:none repr:12]:[minute padding:zero] [period case:upper]";
+
+    let parsed_time_format = time::format_description::parse(LTF_KITCHEN)
+        .with_context(|| "BUG: Cannot parse static time format")?;
+
+    let traces_timer = tracing_subscriber::fmt::time::OffsetTime::new(
+        time::UtcOffset::current_local_offset()
+            .with_context(|| "BUG: Cannot obtain current UTC offset")?,
+        parsed_time_format,
+    );
+
+    tracing_subscriber::fmt()
+        .compact()
+        .with_timer(traces_timer)
+        .with_ansi(true)
+        .init();
+
     let app = App::parse();
+
     match app.command {
         Some(Commands::Dry(args)) => args.run(app.args),
         Some(Commands::Run(args)) => args.run(app.args),
         None => RunArgs::default().run(app.args),
+    }
+}
+
+fn main() {
+    if let Err(err) = main_wrapped() {
+        let err = format!("{}, because {}", err.to_string(), err.root_cause());
+        tracing::error!(err = err, "critical error");
     }
 }

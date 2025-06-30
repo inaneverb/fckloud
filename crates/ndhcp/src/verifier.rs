@@ -1,64 +1,53 @@
-use std::net::IpAddr;
-use anyhow::Result;
-use hyper::{Response, client::conn::http1, service::{Service, HttpService}};
-use serde::{Deserialize};
-use serde_json;
-use reqwest;
+use {
+    std::{
+        net::IpAddr,
+        result::Result as StdResult,
+    },
 
-/// Capability to obtain the current machine's public local IP address,
-/// taking in account local IP address the socket of outgoing connection
-/// must be bound to.
-pub(crate) trait GetPublicLocalIp {
-    async fn get_public_ip(&self, local_ip: IpAddr) -> Result<IpAddr>;
+    anyhow::{anyhow, Error, Result},
+    derive_more::{Debug, Display},
+    reqwest::Client,
+
+    crate::{
+        address,
+        providers::HttpProvider,
+    },
+};
+
+#[derive(Debug, Display)]
+pub enum Reason {
+    InappropriateAddress(address::Kind),
+    RemoteUnmatched(IpAddr),
+    RemoteError(Error),
 }
 
-struct HttpManager {
-    
+/// Performs HTTP request to
+pub async fn get_public_ip(prov: HttpProvider, local_ip: IpAddr) -> Result<IpAddr> {
+
+    let client = Client::builder()
+        .local_address(local_ip)
+        .build()?;
+
+    let response = client
+        .request(prov.request_method(), prov.request_uri())
+        .send()
+        .await?;
+
+    let headers = response.headers().clone();
+    let body = response.bytes().await?;
+
+    prov.response_decode(&headers, body)
 }
 
-impl GetPublicLocalIp for HttpManager {
-    async fn get_public_ip(&self, local_ip: IpAddr) -> Result<IpAddr> {
-        
+pub async fn check_public_ip(prov: HttpProvider, local_ip: IpAddr) -> StdResult<(), Reason> {
+    let remote_ip = get_public_ip(prov, local_ip)
+        .await
+        .or_else(|err| Err(Reason::RemoteError(anyhow!(err))))?;
+
+    if remote_ip != local_ip {
+        return Err(Reason::RemoteUnmatched(remote_ip))
     }
+
+    Ok(())
 }
 
-mod decoders {
-    use super::*;
-
-    struct HttpBin(Response<Vec<u8>>);
-    
-    impl GetPublicLocalIp for HttpBin {
-        async fn get_public_ip(&self, _: IpAddr) -> Result<IpAddr> {
-            
-            #[derive(Deserialize)]
-            struct ResponseTyped {
-                origin: IpAddr
-            }
-            
-            let (sender, conn) = http1::handshake(io);
-        
-            
-            let resp: ResponseTyped = serde_json::from_reader(self.0.body());
-            
-            self.0.body()
-        }
-    }
-}
-
-impl GetPublicLocalIp for Response<Vec<u8>> {
-    async fn get_public_ip(&self, _: IpAddr) -> Result<IpAddr> {
-        self.
-    }
-}
-
-
-
-/// 
-/// 
-pub struct Http {
-    
-}
-
-fn foo() {
-    
-}

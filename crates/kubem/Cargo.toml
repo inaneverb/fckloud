@@ -1,0 +1,23 @@
+[package]
+name = "kubem"
+edition.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/kubem.rs"
+
+[dependencies]
+anyhow.workspace = true
+derive_more.workspace = true
+hyper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+getset.workspace = true
+kube.workspace = true
+k8s-openapi.workspace = true
+
+ndhcp = { path = "../ndhcp" }
