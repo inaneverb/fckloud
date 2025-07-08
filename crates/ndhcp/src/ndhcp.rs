@@ -4,29 +4,28 @@ mod providers;
 pub mod address;
 pub mod verifier;
 
-use {anyhow::Result, strum::IntoEnumIterator};
+use {
+    anyhow::Result, 
+    std::net::IpAddr, 
+    strum::VariantArray,
+};
 
 pub use crate::{
-    manager::{Item, Status},
+    manager::{ItemErrored, ItemSucceeded, Manager, ManagerCompleted},
     providers::HttpProvider,
 };
 
-pub async fn resolve<N>(threshold: N) -> Result<Vec<(Item, Status)>>
-where
-    N: Into<i32>,
-{
-    resolve_by(threshold, HttpProvider::iter()).await
+pub async fn resolve(threshold: i32) -> Result<Vec<IpAddr>> {
+    resolve_by(HttpProvider::VARIANTS, threshold).await
 }
 
-pub async fn resolve_by<N, P>(threshold: N, providers: P) -> Result<Vec<(Item, Status)>>
-where
-    N: Into<i32>,
-    P: IntoIterator<Item = HttpProvider>,
-{
-    let out = manager::Manager::new(providers)?
-        .run(threshold.into())
-        .await;
-    Ok(out)
+pub async fn resolve_by(providers: &[HttpProvider], threshold: i32) -> Result<Vec<IpAddr>> {
+    Ok(manager::Manager::new(providers)?
+        .run()
+        .await
+        .iter_succeeded_threshold(threshold)
+        .map(|(addr, _)| addr.clone())
+        .collect())
 }
 
 #[cfg(test)]

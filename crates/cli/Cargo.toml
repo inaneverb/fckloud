@@ -9,13 +9,17 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-pnet.workspace = true
-local-ip-address.workspace = true
+clokwerk.workspace = true
+chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
 tracing-subscriber.workspace = true
+tracing-forest.workspace = true
 time.workspace = true
+duration-str.workspace = true
+strum.workspace = true
 
 ndhcp = { path = "../ndhcp" }
 kubem = { path = "../kubem" }
+ekacore = { path = "../ekacore" }

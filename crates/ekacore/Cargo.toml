@@ -1,0 +1,12 @@
+[package]
+name = "ekacore"
+edition.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/ekacore.rs"
+
+[dependencies]

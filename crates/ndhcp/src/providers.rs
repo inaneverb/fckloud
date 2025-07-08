@@ -1,16 +1,14 @@
 use {
-    std::{net::IpAddr},
-    
     anyhow::{Context, Result},
     bytes::Bytes,
     derive_more::{Debug, Display},
     reqwest::{Method, header::HeaderMap},
-    strum_macros::{EnumIter, EnumCount},
+    serde_json::from_slice as unjson,
+    std::{net::IpAddr, str::from_utf8_unchecked as b2s},
+    strum_macros::{EnumCount, EnumIter, EnumString, VariantArray},
 };
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
-#[derive(Debug, Display)]
-#[derive(EnumIter, EnumCount)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug, Display, EnumIter, EnumCount, VariantArray, EnumString)]
 pub enum HttpProvider {
     #[display("httpbin.org")]
     HttpBin,
@@ -37,17 +35,13 @@ impl HttpProvider {
 }
 
 fn decode_httpbin(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
-    use serde_json::from_slice as unjson;
-    use std::str::from_utf8_unchecked as b2s;
-    
     #[derive(serde::Deserialize)]
     struct ResponseTyped {
         origin: IpAddr,
     }
 
-    let resp_typed: ResponseTyped = unjson(&body).with_context(|| unsafe {
-        format!("cannot decode HTTP response, data: {}", b2s(&body))
-    })?;
+    let resp_typed: ResponseTyped = unjson(&body)
+        .with_context(|| unsafe { format!("cannot decode HTTP response, data: {}", b2s(&body)) })?;
 
     Ok(resp_typed.origin)
 }

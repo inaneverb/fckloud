@@ -6,7 +6,7 @@ use {
     },
 
     derive_more::{Display, Debug},
-    pnet::ipnetwork::{Ipv4Network, Ipv6Network},
+    ipnet::{Ipv4Net, Ipv6Net},
     strum_macros::{EnumIs, EnumIter, EnumCount},
 };
 
@@ -22,7 +22,7 @@ pub enum Kind {
 }
 
 /// https://en.wikipedia.org/wiki/Reserved_IP_addresses
-pub fn kind_ipv4(addr: Ipv4Addr) -> Kind {
+pub fn kind_ipv4(addr: &Ipv4Addr) -> Kind {
     static RESERVED_RAW: [(&str, Kind); 17] = [
         ("0.0.0.0/8", Kind::Loopback),
         ("10.0.0.0/8", Kind::Private),
@@ -43,10 +43,10 @@ pub fn kind_ipv4(addr: Ipv4Addr) -> Kind {
         ("255.255.255.255/32", Kind::Multicast),
     ];
 
-    static RESERVED: LazyLock<Vec<(Ipv4Network, Kind)>> = LazyLock::new(|| {
+    static RESERVED: LazyLock<Vec<(Ipv4Net, Kind)>> = LazyLock::new(|| {
         RESERVED_RAW
             .iter()
-            .map(|x| (Ipv4Network::from_str(x.0).unwrap(), x.1))
+            .map(|x| (Ipv4Net::from_str(x.0).unwrap(), x.1))
             .collect()
     });
 
@@ -60,7 +60,7 @@ pub fn kind_ipv4(addr: Ipv4Addr) -> Kind {
 }
 
 /// https://en.wikipedia.org/wiki/Reserved_IP_addresses
-pub fn kind_ipv6(addr: Ipv6Addr) -> Kind {
+pub fn kind_ipv6(addr: &Ipv6Addr) -> Kind {
     static RESERVED_RAW: [(&str, Kind); 16] = [
         ("::/128", Kind::Loopback),
         ("::1/128", Kind::Loopback),
@@ -80,10 +80,10 @@ pub fn kind_ipv6(addr: Ipv6Addr) -> Kind {
         ("ff00::/8", Kind::Multicast),
     ];
 
-    static RESERVED: LazyLock<Vec<(Ipv6Network, Kind)>> = LazyLock::new(|| {
+    static RESERVED: LazyLock<Vec<(Ipv6Net, Kind)>> = LazyLock::new(|| {
         RESERVED_RAW
             .iter()
-            .map(|x| (Ipv6Network::from_str(x.0).unwrap(), x.1))
+            .map(|x| (Ipv6Net::from_str(x.0).unwrap(), x.1))
             .collect()
     });
 
@@ -97,21 +97,21 @@ pub fn kind_ipv6(addr: Ipv6Addr) -> Kind {
 }
 
 /// https://en.wikipedia.org/wiki/Reserved_IP_addresses
-pub fn kind(addr: IpAddr) -> Kind {
+pub fn kind(addr: &IpAddr) -> Kind {
     match addr {
         IpAddr::V4(addr_v4) => kind_ipv4(addr_v4),
         IpAddr::V6(addr_v6) => kind_ipv6(addr_v6),
     }
 }
 
-pub fn is_public_ipv4(addr: Ipv4Addr) -> bool {
+pub fn is_public_ipv4(addr: &Ipv4Addr) -> bool {
     kind_ipv4(addr) == Kind::Public
 }
 
-pub fn is_public_ipv6(addr: Ipv6Addr) -> bool {
+pub fn is_public_ipv6(addr: &Ipv6Addr) -> bool {
     kind_ipv6(addr) == Kind::Public
 }
 
-pub fn is_public(addr: IpAddr) -> bool {
+pub fn is_public(addr: &IpAddr) -> bool {
     kind(addr) == Kind::Public
 }
