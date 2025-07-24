@@ -1,10 +1,10 @@
 use {
-    crate::{args, Executable},
+    crate::{Executable, args},
     anyhow::{Context, Error, Result, bail},
     clap::Args as ClapArgs,
     humantime::{Duration as DisplayedDuration, parse_duration},
     kubem::{AddrStatus, Manager as KubeManager},
-    ndhcp::HttpProvider,
+    ndhcp,
     std::time::Duration as StdDuration,
     strum::EnumCount,
     tokio::time::{Instant, sleep},
@@ -15,7 +15,7 @@ use {
 #[derive(ClapArgs)]
 pub struct Args {
     /// The current node name the operator is running on
-    #[arg(short, long, value_name("NAME"), env("FKCLOUD_NODE"))]
+    #[arg(short, long, value_name("NAME"))]
     node: String,
 
     /// The number of providers required for IP address to consider it public
@@ -25,10 +25,7 @@ pub struct Args {
         value_name("NUMBER"),
         default_value_t = 1,
         alias("confirm"),
-        alias("confirmation"),
-        env("FKCLOUD_CONFIRM"),
-        env("FKCLOUD_CONFIRMATION"),
-        env("FKCLOUD_CONFIRMATIONS")
+        alias("confirmation")
     )]
     confirmations: i32,
 
@@ -41,28 +38,14 @@ pub struct Args {
         long,
         value_parser = Self::parse_flag_interval,
         default_value_t = DisplayedDuration::from(Self::MIN_INTERVAL),
-        env("FKCLOUD_INTERVAL"),
     )]
     interval: DisplayedDuration,
 
     #[command(flatten)]
     providers: args::OfProviders,
 
-    // /// The list of providers that should be disabled (assuming enabled all)
-    // #[arg(
-    //     long,
-    //     value_name("PROVIDER"),
-    //     value_parser = Self::parse_flag_disable,
-    //     env("FKCLOUD_DISABLE")
-    // )]
-    // disable: Vec<HttpProvider>,
-
-    // /// The list of enabled providers.
-    // /// Computed lately based on all providers and given `disable`.
-    // #[arg(skip)]
-    // enable: Vec<HttpProvider>,
     /// Remove unmatched ExternalIP addresses from the node
-    #[arg(long, default_value_t = false, env("FKCLOUD_STRICT"))]
+    #[arg(long, default_value_t = false)]
     strict: bool,
 }
 
@@ -70,7 +53,7 @@ impl Args {
     const MIN_INTERVAL: StdDuration = StdDuration::from_secs(30);
 
     const MIN_CONFIRMATIONS: i32 = 1;
-    const MAX_CONFIRMATIONS: i32 = HttpProvider::COUNT as i32;
+    const MAX_CONFIRMATIONS: i32 = ndhcp::HttpProvider::COUNT as i32;
 
     // Parser for "--interval" flag.
     fn parse_flag_interval(s: &str) -> Result<DisplayedDuration> {
@@ -140,8 +123,6 @@ impl Args {
 impl Executable for Args {
     // The preparation for [run], that adjusts some parameters if they had to.
     fn setup(mut self) -> Self {
-        // self.enable = HttpProvider::VARIANTS.to_vec();
-        // self.enable.retain(|e| !self.disable.contains(e));
         self.providers.setup();
 
         self.confirmations = self

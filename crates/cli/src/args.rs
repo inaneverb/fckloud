@@ -1,8 +1,5 @@
 use {
-    anyhow::Result,
-    clap::Args as ClapArgs,
-    ndhcp::HttpProvider,
-    std::str::FromStr,
+    anyhow::Result, clap::Args as ClapArgs, ndhcp::HttpProvider, std::str::FromStr,
     strum::VariantArray,
 };
 
@@ -21,7 +18,6 @@ pub struct OfProviders {
         long,
         value_name("PROVIDER"),
         value_parser = Self::parse_flag_disable,
-        env("FKCLOUD_DISABLE")
     )]
     pub disable: Vec<HttpProvider>,
 
@@ -36,7 +32,7 @@ impl OfProviders {
         self.enable = HttpProvider::VARIANTS.to_vec();
         self.enable.retain(|e| !self.disable.contains(e));
     }
-    
+
     // Parser for "--disable" flag.
     fn parse_flag_disable(s: &str) -> Result<HttpProvider> {
         Ok(HttpProvider::from_str(s)?)
