@@ -15,5 +15,8 @@ tracing.workspace = true
 kube.workspace = true
 k8s-openapi.workspace = true
 serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
 
 ndhcp = {path = "../ndhcp"}
+ekacore = {path = "../ekacore"}

@@ -18,7 +18,7 @@ anyhow = "1.0.98"
 reqwest = { version = "0.12.15" }
 bytes = "1.10.1"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["default", "time"] }
+tracing-subscriber = { version = "0.3.19", features = ["default", "chrono", "env-filter"] }
 tokio = { version = "1.45.1", features = ["full"] }
 smallvec = "1.15.1"
 strum = "0.27.1"
@@ -29,7 +29,7 @@ time = { version = "0.3.41", features = [
     "formatting",
     "macros",
 ] }
-duration-str = { version = "0.17.0", features = ["chrono", "calc"] }
+# duration-str = { version = "0.17.0", features = ["chrono", "calc"] }
 kube = { version = "1.1.0", features = ["default", "derive"] }
 k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
 
@@ -39,6 +39,9 @@ version = "0.4.41"
 [workspace.dependencies.clokwerk]
 version = "0.4.0"
 features = ["async"]
+
+[workspace.dependencies.humantime]
+version = "2.2.0"
 
 [workspace.dependencies.tracing-forest]
 version = "0.1.6"

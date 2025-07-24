@@ -13,11 +13,13 @@ clokwerk.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+humantime.workspace = true
 anyhow.workspace = true
 tracing-subscriber.workspace = true
 tracing-forest.workspace = true
 time.workspace = true
-duration-str.workspace = true
+smallvec.workspace = true
+# duration-str.workspace = true
 strum.workspace = true
 
 ndhcp = { path = "../ndhcp" }

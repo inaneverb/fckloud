@@ -1,11 +1,16 @@
-use clap::Args as ClapArgs;
-use anyhow::Result;
-
-use crate::app::{self, Executable};
+use {
+    crate::{args, Executable},
+    anyhow::Result,
+    clap::Args as ClapArgs
+};
 
 /// The list of options for the "test" command.
 #[derive(ClapArgs)]
 pub struct Args {
+    
+}
+
+impl Args {
     
 }
 
@@ -16,8 +21,7 @@ impl Executable for Args {
     
     // The "main" function for the "test" command.
     // Perpares the Tokio runtime, executes HTTP requests to IP resolvers.
-    #[tokio::main]
-    async fn run(self, global: app::Args) -> Result<()> {
+    async fn run(self, global: args::Global) -> Result<()> {
         Ok(())
     }
 }
