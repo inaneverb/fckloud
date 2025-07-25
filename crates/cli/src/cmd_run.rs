@@ -37,7 +37,7 @@ pub struct Args {
     #[arg(
         long,
         value_parser = Self::parse_flag_interval,
-        default_value_t = DisplayedDuration::from(Self::MIN_INTERVAL),
+        default_value_t = DisplayedDuration::from(Self::DEF_INTERVAL),
     )]
     interval: DisplayedDuration,
 
@@ -50,6 +50,7 @@ pub struct Args {
 }
 
 impl Args {
+    const DEF_INTERVAL: StdDuration = StdDuration::from_secs(60);
     const MIN_INTERVAL: StdDuration = StdDuration::from_secs(30);
 
     const MIN_CONFIRMATIONS: i32 = 1;
@@ -133,6 +134,17 @@ impl Executable for Args {
         assert!(!self.node.is_empty());
         assert!(self.confirmations >= Self::MIN_CONFIRMATIONS);
         assert!(self.confirmations <= Self::MAX_CONFIRMATIONS);
+
+        if *self.interval < Self::DEF_INTERVAL {
+            warn!(
+                given_interval = self.interval.to_string(),
+                safe_min_interval = DisplayedDuration::from(Self::DEF_INTERVAL).to_string(),
+                concat!(
+                    "specified interval could be too short, ",
+                    "many providers discourage you from using <= 1m one per IP per machine",
+                ),
+            )
+        }
 
         self
     }
