@@ -1,7 +1,21 @@
 use {
-    anyhow::Result, clap::Args as ClapArgs, ndhcp::HttpProvider, std::str::FromStr,
-    strum::VariantArray,
+    clap::{
+        Args as ClapArgs,
+        builder::{PossibleValuesParser, TypedValueParser},
+    },
+    ndhcp::HttpProvider,
+    strum::{VariantArray, VariantNames},
 };
+
+// Creds: https://github.com/clap-rs/clap/discussions/4264
+macro_rules! clap_enum_variants {
+    ($e: ty) => {{
+        use TypedValueParser;
+        use VariantNames;
+        let parser = PossibleValuesParser::new(<$e as VariantNames>::VARIANTS);
+        parser.map(|s| s.parse::<$e>().unwrap())
+    }};
+}
 
 // The global application options.
 #[derive(ClapArgs)]
@@ -17,7 +31,7 @@ pub struct OfProviders {
     #[arg(
         long,
         value_name("PROVIDER"),
-        value_parser = Self::parse_flag_disable,
+        value_parser = clap_enum_variants!(HttpProvider)
     )]
     pub disable: Vec<HttpProvider>,
 
@@ -29,12 +43,7 @@ pub struct OfProviders {
 
 impl OfProviders {
     pub fn setup(&mut self) {
-        self.enable = HttpProvider::VARIANTS.to_vec();
+        self.enable = <HttpProvider as VariantArray>::VARIANTS.to_vec();
         self.enable.retain(|e| !self.disable.contains(e));
-    }
-
-    // Parser for "--disable" flag.
-    fn parse_flag_disable(s: &str) -> Result<HttpProvider> {
-        Ok(HttpProvider::from_str(s)?)
     }
 }

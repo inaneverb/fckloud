@@ -58,7 +58,7 @@ impl App {
             3 => "trace",
             _ => "info",
         });
-
+        
         tracing_subscriber::fmt()
             .compact()
             .with_timer(traces_timer)

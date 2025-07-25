@@ -5,10 +5,12 @@ use {
     reqwest::{Method, header::HeaderMap},
     serde_json::from_slice as unjson,
     std::{net::IpAddr, str::from_utf8_unchecked as b2s},
-    strum_macros::{EnumCount, EnumIter, EnumString, VariantArray},
+    strum_macros::{EnumCount, EnumIter, EnumString, VariantArray, VariantNames, IntoStaticStr, AsRefStr},
 };
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug, Display, EnumIter, EnumCount, VariantArray, EnumString)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(EnumIter, EnumCount, VariantArray, VariantNames, EnumString)]
+#[derive(IntoStaticStr, AsRefStr)]
 pub enum HttpProvider {
     #[display("httpbin.org")]
     HttpBin,
