@@ -5,7 +5,10 @@ use {
     std::{future::Future, process::exit},
     tokio::{select, signal, spawn, sync::mpsc},
     tracing::error,
-    tracing_subscriber::{filter::EnvFilter, fmt::time::ChronoLocal as ChronoLocalTimeFormatter},
+    tracing_subscriber::{
+        Layer, filter::EnvFilter, fmt::time::ChronoLocal as ChronoLocalTimeFormatter,
+        layer::SubscriberExt, util::SubscriberInitExt,
+    },
 };
 
 mod args;
@@ -45,26 +48,45 @@ impl App {
     }
 
     fn setup_logging(&mut self) {
-        // const CONSOLE_TIME_FORMAT: &'static str = "%R";
+        // https://docs.rs/chrono/latest/chrono/format/strftime/index.html
         const CONSOLE_TIME_FORMAT: &'static str = "%l:%M %p";
 
-        // https://docs.rs/chrono/latest/chrono/format/strftime/index.html
-        let traces_timer = ChronoLocalTimeFormatter::new(CONSOLE_TIME_FORMAT.into());
+        enum LogKind {
+            HumanReadable,
+            Json,
+        }
+
+        let log_kind = self
+            .args
+            .json
+            .then_some(LogKind::Json)
+            .unwrap_or(LogKind::HumanReadable);
+
+        let log_layer = match log_kind {
+            LogKind::Json => tracing_subscriber::fmt::layer()
+                .json()
+                .with_timer(ChronoLocalTimeFormatter::rfc_3339())
+                .boxed(),
+
+            LogKind::HumanReadable => tracing_subscriber::fmt::layer()
+                .with_timer(ChronoLocalTimeFormatter::new(CONSOLE_TIME_FORMAT.into()))
+                .compact()
+                .with_target(false)
+                .with_ansi(true)
+                .boxed(),
+        };
 
         // https://docs.rs/tracing-subscriber/latest/tracing_subscriber/?search=EnvFilter
-        let env_filter = EnvFilter::new(match self.args.verbose {
+        let env_filter_layer = EnvFilter::new(match self.args.verbose {
             1 => "info,fckloud=debug",
             2 => "debug",
             3 => "trace",
             _ => "info",
         });
-        
-        tracing_subscriber::fmt()
-            .compact()
-            .with_timer(traces_timer)
-            .with_target(false)
-            .with_ansi(true)
-            .with_env_filter(env_filter)
+
+        tracing_subscriber::registry()
+            .with(log_layer)
+            .with(env_filter_layer)
             .init();
     }
 }
@@ -97,6 +119,7 @@ async fn main_runtime(app: App) -> i32 {
     }
     err.and_then(|_| Some(1)).unwrap_or(0)
 }
+
 // Executes the Tokio runtime main only if the application is provided
 // with valid arguments thus parsing it at first.
 fn main() {

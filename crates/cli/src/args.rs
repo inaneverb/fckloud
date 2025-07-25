@@ -23,6 +23,10 @@ pub struct Global {
     /// Enable verbose output (up to 3 levels)
     #[arg(global=true, short, long, action=clap::ArgAction::Count)]
     pub verbose: u8,
+    
+    /// Write logs in JSON instead of human-readable format
+    #[arg(global=true, short, long)]
+    pub json: bool
 }
 
 #[derive(Clone, ClapArgs)]

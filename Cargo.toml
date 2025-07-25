@@ -18,7 +18,7 @@ anyhow = "1.0.98"
 reqwest = { version = "0.12.15" }
 bytes = "1.10.1"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["default", "chrono", "env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["default", "chrono", "env-filter", "json"] }
 tokio = { version = "1.45.1", features = ["full"] }
 smallvec = "1.15.1"
 strum = "0.27.1"
