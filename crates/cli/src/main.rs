@@ -17,7 +17,7 @@ mod cmd_test;
 
 // The application itself.
 #[derive(ClapParser)]
-#[command(version, about, long_about = None, disable_help_subcommand = true)]
+#[command(author, version, about, long_about = None, disable_help_subcommand = true)]
 struct App {
     #[command(subcommand)]
     command: Command,

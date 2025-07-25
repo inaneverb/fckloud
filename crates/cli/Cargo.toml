@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "fckloud"
 version.workspace = true
 edition.workspace = true
 
@@ -8,18 +8,12 @@ name = "fckloud"
 path = "src/main.rs"
 
 [dependencies]
+anyhow.workspace = true
 clap.workspace = true
-clokwerk.workspace = true
-chrono.workspace = true
+humantime.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-humantime.workspace = true
-anyhow.workspace = true
 tracing-subscriber.workspace = true
-tracing-forest.workspace = true
-time.workspace = true
-smallvec.workspace = true
-# duration-str.workspace = true
 strum.workspace = true
 
 ndhcp = { path = "../ndhcp" }

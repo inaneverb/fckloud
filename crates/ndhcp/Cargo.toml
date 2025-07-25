@@ -10,17 +10,16 @@ workspace = true
 path = "src/ndhcp.rs"
 
 [dependencies]
-ipnet.workspace = true
 anyhow.workspace = true
+bytes.workspace = true
 derive_more.workspace = true
+ipnet.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# miniserde.workspace = true
-reqwest.workspace = true
-bytes.workspace = true
-tokio.workspace = true
+smallvec.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
-smallvec.workspace = true
+tokio.workspace = true
 
 ekacore = { path = "../ekacore" }

@@ -1,10 +1,9 @@
-use std::{collections::HashMap, net::IpAddr};
-
 use {
     anyhow::{Error, Result, bail},
     ekacore::traits::Discard,
     smallvec::SmallVec,
     strum::EnumCount,
+    std::{collections::HashMap, net::IpAddr},
     tokio::task::JoinSet,
 };
 
