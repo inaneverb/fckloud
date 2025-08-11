@@ -15,8 +15,8 @@
 
 ## Deploy
 
-- [ ] Write Dockerfile
-- [ ] Write Kubernetes all-in-one deployment solution
+- [x] Write Dockerfile
+- [x] Write Kubernetes all-in-one deployment solution
 
 
 ## Healthcheck

@@ -35,6 +35,7 @@ pub struct Args {
 
     /// How often the checks must happen (must be 30s or more)
     #[arg(
+        short = 't',
         long,
         value_parser = Self::parse_flag_interval,
         default_value_t = DisplayedDuration::from(Self::DEF_INTERVAL),
@@ -152,6 +153,8 @@ impl Executable for Args {
     // The "main" function for the "run" command.
     // Prepares scheduler and starts the operator.
     async fn run(self, global: args::Global) -> Result<()> {
+        info!("welcome to fckloud");
+        
         let mut kube_manager = kubem::Manager::new(&self.node).await?;
 
         kube_manager

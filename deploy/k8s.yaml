@@ -1,0 +1,121 @@
+# ServiceAccount for the operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fckloud-sa
+  namespace: default
+automountServiceAccountToken: true
+
+---
+# ClusterRole with minimal permissions for node status management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fckloud-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["nodes/status"]
+  verbs: ["patch", "update"]
+
+---
+# ClusterRoleBinding to grant permissions to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fckloud-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fckloud-role
+subjects:
+- kind: ServiceAccount
+  name: fckloud-sa
+  namespace: default
+
+---
+# DaemonSet ensures exactly one replica per node
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fckloud
+  namespace: default
+  labels:
+    app.kubernetes.io/name: fckloud
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fckloud
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fckloud
+    spec:
+      serviceAccountName: fckloud-sa
+      hostNetwork: true # Host network access for networking stack access
+      
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      
+      containers:
+      - name: fckloud-controller
+        image: your-registry/your-app-name:latest
+        # Always pull from local - never try to fetch remotely
+        # Change to "Always" or "IfNotPresent" for different behaviors:
+        # - "Always": Always pull from registry
+        # - "IfNotPresent": Pull only if image doesn't exist locally
+        # - "Never": Never pull, only use local images
+        imagePullPolicy: Never
+        
+        args:
+        - "--node=$(FCKLOUD_NODE_NAME)" # The node this controller should manage
+        - "--json=$(FCKLOUD_LOG_JSON)"  # Enable logs in JSON?
+        - "--strict=$(FCKLOUD_STRICT)"  # Remove unmatched ExternalIPs?
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            # Add specific capabilities if needed for networking:
+            # add:
+            # - NET_ADMIN  # For network configuration
+            # - NET_RAW    # For raw sockets
+        
+        # Environment variables that get mapped to CLI parameters above
+        env:
+        - name: FCKLOUD_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: FCKLOUD_LOG_JSON
+          value: "false"
+        - name: FCKLOUD_STRICT
+          value: "false"
+        
+        # Resource limits
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+      
+      # Tolerations to run on all nodes including control plane (comment if needed)
+      # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+
+---
