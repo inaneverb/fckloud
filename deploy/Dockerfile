@@ -1,5 +1,5 @@
 # Debian-slim based
-FROM rust:1.88-slim as builder
+FROM rust:1.88-slim AS builder
 
 # Install required build dependencies
 RUN apt-get update && apt-get install -y \
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /fckloud
 
+COPY .git ./
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY Makefile ./
