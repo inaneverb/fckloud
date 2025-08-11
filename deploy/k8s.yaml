@@ -65,13 +65,7 @@ spec:
       
       containers:
       - name: fckloud-controller
-        image: your-registry/your-app-name:latest
-        # Always pull from local - never try to fetch remotely
-        # Change to "Always" or "IfNotPresent" for different behaviors:
-        # - "Always": Always pull from registry
-        # - "IfNotPresent": Pull only if image doesn't exist locally
-        # - "Never": Never pull, only use local images
-        imagePullPolicy: Never
+        image: ghcr.io/inaneverb/fckloud:latest
         
         args:
         - "--node=$(FCKLOUD_NODE_NAME)" # The node this controller should manage
