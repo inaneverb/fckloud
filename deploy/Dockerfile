@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /fckloud
 
-COPY .git ./
+COPY .git ./.git/
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY Makefile ./
