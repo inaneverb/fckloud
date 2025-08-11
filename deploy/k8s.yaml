@@ -1,8 +1,20 @@
+# Separated namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fckloud-controller
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+    
+---
 # ServiceAccount for the operator
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: fckloud-controller
+  namespace: fckloud-controller
 automountServiceAccountToken: true
 
 ---
@@ -32,6 +44,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: fckloud-controller
+  namespace: fckloud-controller
 
 ---
 # DaemonSet ensures exactly one replica per node
@@ -39,6 +52,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fckloud-controller
+  namespace: fckloud-controller
   labels:
     app.kubernetes.io/name: fckloud-controller
 spec:
@@ -59,6 +73,8 @@ spec:
         runAsUser: 65532
         runAsGroup: 65532
         fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       
       containers:
       - name: fckloud-controller
@@ -73,8 +89,6 @@ spec:
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
-          seccompProfile:
-            type: RuntimeDefault
           capabilities:
             drop:
             - ALL
