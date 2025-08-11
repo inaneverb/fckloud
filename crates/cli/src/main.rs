@@ -12,12 +12,15 @@ use {
 };
 
 mod args;
+mod build_info;
 mod cmd_run;
 mod cmd_test;
 
 // The application itself.
 #[derive(ClapParser)]
-#[command(author, version, about, long_about = None, disable_help_subcommand = true)]
+#[command(version = build_info::version())]
+#[command(author, about, long_about = None)]
+#[command(disable_help_subcommand = true)]
 struct App {
     #[command(subcommand)]
     command: Command,

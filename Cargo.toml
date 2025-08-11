@@ -25,12 +25,13 @@ strum_macros = "0.27.1"
 smallvec = "1.15.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = [
-    "default",
     "chrono",
     "env-filter",
     "json",
 ] }
 tokio = { version = "1.45.1", features = ["full"] }
+vergen = { version = "9.0.6", features = ["build"] }
+vergen-gitcl = { version = "1.0.8" }
 
 [workspace.lints]
 

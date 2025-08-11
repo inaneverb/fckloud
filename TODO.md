@@ -1,14 +1,14 @@
 ## General
 
 - [ ] Add authors to the `--help` command
-- [ ] Add git commit hash and build date to the `--version` command
+- [x] Add git commit hash and build date to the `--version` command
 - [ ] Add command `providers` to get the list of known providers and their info
 
 
 ## Build
 
 - [ ] Add build solutions
-  - [ ] Support `make` (`Makefile`)
+  - [x] Support `make` (`Makefile`)
   - [ ] Support `just` (`justfile`) - https://just.systems/
   - [ ] Support `task` (`Taskfile.yml`) - https://taskfile.dev/
 
