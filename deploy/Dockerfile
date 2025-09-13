@@ -1,13 +1,14 @@
 # Debian-slim based
-FROM rust:1.88-slim AS builder
+FROM rust:1.88-alpine3.20 AS builder
 
 # Install required build dependencies
-RUN apt-get update && apt-get install -y \
-    pkg-config \
-    libssl-dev \
+RUN apk add --no-cache \
+    pkgconfig \
+    openssl-dev \
+    openssl-libs-static \
     git \
-    make \
-    && rm -rf /var/lib/apt/lists/*
+    musl-dev \
+    make
 
 WORKDIR /fckloud
 
@@ -36,7 +37,7 @@ RUN apk add --no-cache \
     && addgroup -g 65532 -S nonroot \
     && adduser -u 65532 -S nonroot -G nonroot
 
-COPY --from=builder /fckloud/target/release/fckloud /usr/local/bin/fckloud
+COPY --from=builder /fckloud/target/release/fckloud /usr/local/bin/
 
 RUN chown nonroot:nonroot /usr/local/bin/fckloud
 
