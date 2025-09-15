@@ -80,11 +80,6 @@ spec:
       - name: fckloud-controller
         image: ghcr.io/inaneverb/fckloud:latest
         
-        args:
-        - "--node=$(FCKLOUD_NODE_NAME)" # The node this controller should manage
-        - "--json=$(FCKLOUD_LOG_JSON)"  # Enable logs in JSON?
-        - "--strict=$(FCKLOUD_STRICT)"  # Remove unmatched ExternalIPs?
-        
         # Security context for container
         securityContext:
           allowPrivilegeEscalation: false
@@ -92,20 +87,15 @@ spec:
           capabilities:
             drop:
             - ALL
-            # Add specific capabilities if needed for networking:
-            # add:
-            # - NET_ADMIN  # For network configuration
-            # - NET_RAW    # For raw sockets
         
-        # Environment variables that get mapped to CLI parameters above
         env:
-        - name: FCKLOUD_NODE_NAME
+        - name: FCKLOUD_NODE # The node this controller should manage
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        - name: FCKLOUD_LOG_JSON
+        - name: FCKLOUD_JSON # Enable logs in JSON?
           value: "false"
-        - name: FCKLOUD_STRICT
+        - name: FCKLOUD_STRICT # Remove unmatched ExternalIPs?
           value: "false"
         
         # Resource limits

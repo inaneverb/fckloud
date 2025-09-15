@@ -48,6 +48,6 @@ ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/fckloud", "run"]
 CMD ["--help"]
 
 # Env vars to configure the controller.
-ENV FCKLOUD_NODE_NAME=""
-ENV FCKLOUD_LOG_JSON="false"
+ENV FCKLOUD_NODE=""
+ENV FCKLOUD_JSON="false"
 ENV FCKLOUD_STRICT="false"

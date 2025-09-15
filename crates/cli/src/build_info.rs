@@ -2,6 +2,9 @@
 
 use std::sync::OnceLock;
 
+// Utility application constants
+pub const ENV_PREFIX: &str = "FCKLOUD_";
+
 // Build infromation from vergen via cargo:rustc-env
 pub const BUILD_DATE: &str = env!("VERGEN_BUILD_DATE");
 pub const BUILD_TIMESTAMP: &str = env!("VERGEN_BUILD_TIMESTAMP");

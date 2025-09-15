@@ -62,6 +62,7 @@ impl App {
         let log_kind = self
             .args
             .json
+            // .unwrap_or(false)
             .then_some(LogKind::Json)
             .unwrap_or(LogKind::HumanReadable);
 

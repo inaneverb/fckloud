@@ -1,7 +1,8 @@
 use {
-    crate::{Executable, args},
+    crate::{Executable, args, build_info::ENV_PREFIX},
     anyhow::{Context, Error, Result, bail},
     clap::Args as ClapArgs,
+    const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
     kubem::{AddrStatus, Manager as KubeManager},
     ndhcp,
@@ -15,7 +16,12 @@ use {
 #[derive(ClapArgs)]
 pub struct Args {
     /// The current node name the operator is running on
-    #[arg(short, long, value_name("NAME"))]
+    #[arg(
+        short,
+        long,
+        value_name("NAME"),
+        env(concatcp!(ENV_PREFIX, "NODE")),
+    )]
     node: String,
 
     /// The number of providers required for IP address to consider it public
@@ -25,7 +31,8 @@ pub struct Args {
         value_name("NUMBER"),
         default_value_t = 1,
         alias("confirm"),
-        alias("confirmation")
+        alias("confirmation"),
+        env(concatcp!(ENV_PREFIX, "CONFIRMATIONS")),
     )]
     confirmations: i32,
 
@@ -39,6 +46,7 @@ pub struct Args {
         long,
         value_parser = Self::parse_flag_interval,
         default_value_t = DisplayedDuration::from(Self::DEF_INTERVAL),
+        env(concatcp!(ENV_PREFIX, "INTERVAL")),
     )]
     interval: DisplayedDuration,
 
@@ -46,7 +54,16 @@ pub struct Args {
     providers: args::OfProviders,
 
     /// Remove unmatched ExternalIP addresses from the node
-    #[arg(long, default_value_t = false)]
+    #[arg(
+        long, 
+        default_value_t=false,
+        default_missing_value="true",
+        num_args=0..=1,
+        value_name="BOOL",
+        hide_default_value=true,
+        hide_possible_values=true,
+        env=concatcp!(ENV_PREFIX, "STRICT"),
+    )]
     strict: bool,
 }
 
@@ -154,7 +171,7 @@ impl Executable for Args {
     // Prepares scheduler and starts the operator.
     async fn run(self, global: args::Global) -> Result<()> {
         info!("welcome to fckloud");
-        
+
         let mut kube_manager = kubem::Manager::new(&self.node).await?;
 
         kube_manager

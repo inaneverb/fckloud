@@ -1,8 +1,10 @@
 use {
+    crate::build_info::ENV_PREFIX,
     clap::{
         Args as ClapArgs,
         builder::{PossibleValuesParser, TypedValueParser},
     },
+    const_format::concatcp,
     ndhcp::HttpProvider,
     strum::{VariantArray, VariantNames},
 };
@@ -21,12 +23,29 @@ macro_rules! clap_enum_variants {
 #[derive(ClapArgs)]
 pub struct Global {
     /// Enable verbose output (up to 3 levels)
-    #[arg(global=true, short, long, action=clap::ArgAction::Count)]
+    #[arg(
+        global=true, 
+        short, 
+        long, 
+        action=clap::ArgAction::Count, 
+        env(concatcp!(ENV_PREFIX, "VERBOSE")),
+    )]
     pub verbose: u8,
-    
+
     /// Write logs in JSON instead of human-readable format
-    #[arg(global=true, short, long)]
-    pub json: bool
+    #[arg(
+        global = true,
+        short,
+        long,
+        default_value_t=false,
+        default_missing_value="true",
+        num_args=0..=1,
+        value_name="BOOL",
+        hide_default_value=true,
+        hide_possible_values=true,
+        env(concatcp!(ENV_PREFIX, "JSON")),
+    )]
+    pub json: bool,
 }
 
 #[derive(Clone, ClapArgs)]
@@ -35,7 +54,8 @@ pub struct OfProviders {
     #[arg(
         long,
         value_name("PROVIDER"),
-        value_parser = clap_enum_variants!(HttpProvider)
+        value_parser = clap_enum_variants!(HttpProvider),
+        env(concatcp!(ENV_PREFIX, "DISABLE")),
     )]
     pub disable: Vec<HttpProvider>,
 

@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["Ilya Stroy <inaneverb@pm.me>"]
 
@@ -11,7 +11,8 @@ members = ["crates/cli", "crates/ekacore", "crates/ndhcp", "crates/kubem"]
 anyhow = "1.0.98"
 bytes = "1.10.1"
 # chrono = { version = "0.4.41" }
-clap = { version = "4.5.38", features = ["derive", "cargo"] }
+clap = { version = "4.5.38", features = ["derive", "env", "cargo"] }
+const_format = "0.2.34"
 derive_more = { version = "2.0.1", features = ["display", "debug"] }
 humantime = { version = "2.2.0" }
 ipnet = "2.11.0"
