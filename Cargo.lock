@@ -427,7 +427,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "ekacore"
-version = "0.2.0"
+version = "1.0.0"
 
 [[package]]
 name = "encoding_rs"
@@ -462,7 +462,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "fckloud"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1146,7 +1146,7 @@ dependencies = [
 
 [[package]]
 name = "kubem"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "ekacore",
@@ -1259,7 +1259,7 @@ dependencies = [
 
 [[package]]
 name = "ndhcp"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "bytes",
