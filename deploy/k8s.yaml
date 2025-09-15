@@ -96,7 +96,7 @@ spec:
         - name: FCKLOUD_JSON # Enable logs in JSON?
           value: "false"
         - name: FCKLOUD_STRICT # Remove unmatched ExternalIPs?
-          value: "false"
+          value: "true"
         
         # Resource limits
         resources:

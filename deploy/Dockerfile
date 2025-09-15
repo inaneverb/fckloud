@@ -44,8 +44,8 @@ RUN chown nonroot:nonroot /usr/local/bin/fckloud
 USER nonroot
 
 # Default command will be overridden in Kubernetes
-ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/fckloud", "run"]
-CMD ["--help"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/fckloud"]
+CMD ["run", "--strict"]
 
 # Env vars to configure the controller.
 ENV FCKLOUD_NODE=""
