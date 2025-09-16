@@ -28,6 +28,7 @@ pub struct Manager {
     remove_unapplied: bool,
 
     pending: BTreeSet<IpAddr>,
+    previous: BTreeSet<IpAddr>,
 }
 
 #[derive(EnumIs, EnumString)]
@@ -94,6 +95,7 @@ impl Manager {
             api_nodes,
             node_name,
             pending: BTreeSet::new(),
+            previous: BTreeSet::new(),
             dry_run: false,
             remove_unapplied: false,
         }
@@ -131,26 +133,65 @@ impl Manager {
             bail!("no addresses are staged and remove unapplied is not requested")
         }
 
-        // ADD (and):
-        // - In "pending"
-        // - Not in "current"
-        //
-        // REMOVE (and):
-        // - Remove unapplied flag is set
-        // - Not in "pending"
-        // - In "current"
-        //
-        // SKIPPED (or):
-        // - In "current"
-
         let mut out = BTreeMap::new();
         let mut patch = Vec::new();
         let mut has_changes = false;
 
-        let part_1 = self.iter_node_addresses().await?.filter(|node_address| {
-            match parse_ip(&node_address) {
+        // A lot is going on here with some tricks, so brief explanation.
+        //
+        // We will iterate over CURRENT node addresses,
+        // wanting to get such an array at the end
+        // that will have these CURRENT node addresses that must be preserved.
+        //
+        // At the same time we will be adding both non-preserved (removed)
+        // and preserved (skipped) addresses to the report.
+        //
+        // 1. If it's NOT ExternalIP (either Hostname or InternalIP)
+        //    it must be preserved, will be a part of the array
+        //    but will NOT be added to the report at all;
+        //
+        // 2. If it's an ExternalIP, try and remove it from the pending addresses
+        //    (these user have marked explicitly as ones they want the node to have)
+        //
+        // 2.1. If succeeded (address was in pending),
+        //      this address must be preserved, will be a part of the array
+        //      and will be added to the report as skipped one;
+        //
+        // 2.2. If failed (address was not in pending),
+        //
+        // 2.2.1. If user requested strict mode
+        //        (remove unconfirmed (not marked explicitly) addresses from the node)
+        //        it must be FILTERED OUT, will NOT be a part of the array,
+        //        but will be added to the report as removed one;
+        //
+        // 2.2.2. Not strict mode so,
+        //        will be a part of the array,
+        //        will be added to the report as skipped one;
+        //
+        // So, the resulting array of NodeAddress will have:
+        // - Both Hostname and InternalIP
+        // - These ExternalIP that has "skipped" status in the report.
+        //
+        // Once again, we are iterating over CURRENT node addresses,
+        // not over these that user requested to add to the node.
+        //
+        // We also using pseudo CURRENT node addresses instead of real ones
+        // if it's dry run mode (read more about it far below).
+
+        let part_1: Vec<NodeAddress> = if self.dry_run.not() {
+            self.iter_node_addresses().await?.collect()
+        } else {
+            self.previous
+                .iter()
+                .map(|addr| new_node_address(&addr, Self::TYPE_EXTERNAL_IP))
+                .collect()
+        };
+
+        let part_1 = part_1
+            .into_iter()
+            .filter(|node_address| match parse_ip(&node_address) {
                 _ if is_external_ip(&node_address).not() => true,
-                None => false,
+                None => unreachable!("is an external IP that must be parsed"),
                 Some(external_ip) => {
                     let status = match self.pending.remove(&external_ip) {
                         false if self.remove_unapplied => {
@@ -161,10 +202,13 @@ impl Manager {
                     };
                     out.entry(external_ip).or_insert(status).is_skipped()
                 }
-            }
-        });
+            });
 
         patch.extend(part_1);
+
+        // Because we were trying and removing currently attached ExternalIPs
+        // from the pending addresses, now it has only brand-new these.
+        // So add them all as new to the report and to the patch as well.
 
         let mut part_2 = mem::take(&mut self.pending)
             .into_iter()
@@ -180,6 +224,32 @@ impl Manager {
                 .await
                 .with_context(|| format!("cannot send the patch"))?;
         }
+
+        // For strictly cosmetic purposes, we want to consider addresses
+        // that are currently attached and were preserved
+        // as new ones at least once.
+        //
+        // That way the caller might have them logged,
+        // preventing confusing silent mode when all addresses are
+        // confirmed and skipped.
+        //
+        // That's why we are maintaining the set of addresses of "previous",
+        // that is empty at the beginning.
+
+        out = out
+            .into_iter()
+            .map(|(address, status)| match status {
+                AddrStatus::Skipped if !self.previous.contains(&address) => {
+                    (address, AddrStatus::New)
+                }
+                _ => (address, status),
+            })
+            .collect();
+
+        out.iter().for_each(|(address, status)| match status {
+            AddrStatus::Removed => self.previous.remove(address).discard(),
+            _ => self.previous.insert(*address).discard(),
+        });
 
         Ok(out)
     }

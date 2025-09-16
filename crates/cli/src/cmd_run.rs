@@ -105,7 +105,7 @@ impl Args {
             .for_each(|(provider, err)| error!(?provider, err, "provider cannot be used"));
 
         // We got some IP addresses confirmed.
-        // Validate each it got enough confirmations and stage it if so.
+        // Validate each of these got enough confirmations and stage it if so.
         addr_manager
             .iter_succeeded()
             .for_each(|(ip_addr, providers)| {
