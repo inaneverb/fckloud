@@ -5,11 +5,11 @@ use {
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
     kubem::{AddrStatus, Manager as KubeManager},
-    ndhcp,
+    ndhcp::Manager as AddrManager,
     std::time::Duration as StdDuration,
     strum::EnumCount,
     tokio::time::{Instant, sleep},
-    tracing::{debug, error, info, warn},
+    tracing::{debug, info, warn},
 };
 
 /// The list of options for the "run" command.
@@ -55,7 +55,7 @@ pub struct Args {
 
     /// Remove unmatched ExternalIP addresses from the node
     #[arg(
-        long, 
+        long,
         default_value_t=false,
         default_missing_value="true",
         num_args=0..=1,
@@ -90,40 +90,21 @@ impl Args {
     //
     // Creates manager, connects to the Kubernetes, scans for IP addresses,
     // applies them to the current node and goes to sleep till the next iteration.
-    async fn job(&self, _: &args::Global, kube_manager: &mut KubeManager) -> Result<()> {
-        let addr_manager = ndhcp::Manager::new(&self.providers.enable)?.run().await;
-
-        // Apply parameters.
-        kube_manager
-            .set_dry_run(self.dry_run)
-            .set_remove_unstaged(self.strict);
-
-        // Log these providers that were unable to confirm.
+    async fn job(
+        &self,
+        _: &args::Global,
+        kube_manager: &mut KubeManager,
+        addr_manager: &AddrManager,
+    ) -> Result<()> {
         addr_manager
-            .iter_errored()
-            .map(|(provider, err)| (provider, format!("{:#}", err)))
-            .for_each(|(provider, err)| error!(?provider, err, "provider cannot be used"));
-
-        // We got some IP addresses confirmed.
-        // Validate each of these got enough confirmations and stage it if so.
-        addr_manager
-            .iter_succeeded()
-            .for_each(|(ip_addr, providers)| {
-                if providers.len() >= self.confirmations as usize {
-                    kube_manager.stage_address(ip_addr);
-                    debug!(?ip_addr, ?providers, "address has been confirmed");
-                } else {
-                    let short = self.confirmations as usize - providers.len();
-                    warn!(
-                        ?ip_addr,
-                        ?providers,
-                        ?short,
-                        "address has NOT been confirmed"
-                    );
-                }
+            .run()
+            .await
+            .confirmed
+            .iter()
+            .for_each(|ip_addr| {
+                kube_manager.stage_address(ip_addr);
             });
 
-        // Apply the changes.
         kube_manager
             .apply()
             .await
@@ -173,6 +154,7 @@ impl Executable for Args {
         info!("welcome to fckloud");
 
         let mut kube_manager = kubem::Manager::new(&self.node).await?;
+        let addr_manager = ndhcp::Manager::new(self.providers.enable.clone());
 
         kube_manager
             .query_current_addresses()
@@ -180,11 +162,15 @@ impl Executable for Args {
             .with_context(|| format!("cannot query the current ExternalIP addresses"))?
             .for_each(|ip| debug!(?ip, "this ExternalIP is currently attached"));
 
+        kube_manager
+            .set_dry_run(self.dry_run)
+            .set_remove_unstaged(self.strict);
+
         loop {
             let now = Instant::now();
             debug!("the time has come, executing job...");
 
-            self.job(&global, &mut kube_manager)
+            self.job(&global, &mut kube_manager, &addr_manager)
                 .await
                 .with_context(|| format!("the job execution is failed"))?;
 

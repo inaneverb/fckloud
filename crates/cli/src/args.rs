@@ -5,7 +5,7 @@ use {
         builder::{PossibleValuesParser, TypedValueParser},
     },
     const_format::concatcp,
-    ndhcp::HttpProvider,
+    ndhcp::{HttpProvider, HttpProviders},
     strum::{VariantArray, VariantNames},
 };
 
@@ -24,10 +24,10 @@ macro_rules! clap_enum_variants {
 pub struct Global {
     /// Enable verbose output (up to 3 levels)
     #[arg(
-        global=true, 
-        short, 
-        long, 
-        action=clap::ArgAction::Count, 
+        global=true,
+        short,
+        long,
+        action=clap::ArgAction::Count,
         env(concatcp!(ENV_PREFIX, "VERBOSE")),
     )]
     pub verbose: u8,
@@ -62,12 +62,15 @@ pub struct OfProviders {
     /// The list of enabled providers.
     /// Computed lately based on all providers and given `disable`.
     #[arg(skip)]
-    pub enable: Vec<HttpProvider>,
+    pub enable: HttpProviders,
 }
 
 impl OfProviders {
     pub fn setup(&mut self) {
-        self.enable = <HttpProvider as VariantArray>::VARIANTS.to_vec();
-        self.enable.retain(|e| !self.disable.contains(e));
+        self.enable = <HttpProvider as VariantArray>::VARIANTS
+            .iter()
+            .filter(|provider| self.disable.contains(*provider))
+            .cloned()
+            .collect();
     }
 }

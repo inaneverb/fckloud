@@ -3,7 +3,7 @@ use {
     anyhow::Result,
     clap::Args as ClapArgs,
     ndhcp,
-    tracing::{error, info},
+    tracing::info,
 };
 
 /// The list of options for the "test" command.
@@ -25,20 +25,10 @@ impl Executable for Args {
     // The "main" function for the "test" command.
     // Perpares the Tokio runtime, executes HTTP requests to IP resolvers.
     async fn run(self, _: args::Global) -> Result<()> {
-        let addr_manager = ndhcp::Manager::new(&self.providers.enable)?.run().await;
-
-        // Log these providers that were unable to confirm.
-        addr_manager
-            .iter_errored()
-            .map(|(provider, err)| (provider, format!("{:#}", err)))
-            .for_each(|(provider, err)| error!(?provider, err, "provider cannot be used"));
-
-        // We got some IP addresses confirmed.
-        addr_manager
-            .iter_succeeded()
-            .for_each(|(ip_addr, providers)| {
-                info!(?ip_addr, ?providers, "address has been confirmed")
-            });
+        ndhcp::resolve_by(&self.providers.enable)
+            .await
+            .iter()
+            .for_each(|ip_addr| info!(?ip_addr, "address has been confirmed"));
 
         Ok(())
     }

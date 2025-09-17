@@ -1,31 +1,31 @@
 mod manager;
 mod providers;
+mod trust_factor;
 
 pub mod address;
 pub mod verifier;
 
-use {
-    anyhow::Result, 
-    std::net::IpAddr, 
-    strum::VariantArray,
-};
+use smallvec::SmallVec;
+
+use {std::net::IpAddr, strum::VariantArray};
 
 pub use crate::{
-    manager::{ItemErrored, ItemSucceeded, Manager, ManagerCompleted},
-    providers::HttpProvider,
+    manager::Manager,
+    providers::{HttpProvider, HttpProviders},
+    trust_factor::TrustFactorAuthority,
 };
 
-pub async fn resolve(threshold: i32) -> Result<Vec<IpAddr>> {
-    resolve_by(HttpProvider::VARIANTS, threshold).await
+pub async fn resolve() -> Vec<IpAddr> {
+    resolve_by(HttpProvider::VARIANTS).await
 }
 
-pub async fn resolve_by(providers: &[HttpProvider], threshold: i32) -> Result<Vec<IpAddr>> {
-    Ok(manager::Manager::new(providers)?
+pub async fn resolve_by(providers: &[HttpProvider]) -> Vec<IpAddr> {
+    Manager::new(SmallVec::from_slice(providers))
         .run()
         .await
-        .iter_succeeded_threshold(threshold)
-        .map(|(addr, _)| addr.clone())
-        .collect())
+        .confirmed
+        .into_iter()
+        .collect()
 }
 
 #[cfg(test)]

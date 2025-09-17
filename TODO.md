@@ -54,8 +54,7 @@
 ## Features
 
 - [ ] Implement "Rate limiters" (see below)
-- [ ] Implement "Weighting providers" (see below)
-- [ ] Implement "Maintain concensus" (see below)
+- [x] Implement "Weighting providers" (see below)
 - [ ] Implement "Dual-stack" (see below)
 
 
@@ -79,17 +78,6 @@ Introduce and implement bucketed accumulated value Q, one per each obtained IP.
 Each provider has it's own trust factor (K). When provider reports some IP,
 its K adds to that IP's Q. 
 When Q reaches some threshold, let's say Q', it's assumed confirmed and ready.
-
-### Maintain concensus
-
-Each IP must reach some confirmations (for now) or some Q (if "Weighting providers" is implemented).
-The threshold value must be defaulted with ability to being overwritten by user.
-However, we should either
-- Restrict user to provide such low threshold, 
-  that one provider is enough to confirm IP
-- Take in account user's given threshold, however if the number of used providers is too low,
-  force use additional N providers even if threshold is already reached
-  thus verifying that consensus of IP is still reached
   
 ### Dual-stack
 
