@@ -36,9 +36,9 @@ impl TrustFactorAuthority {
 
     /// Overwrites default trust factor for the given [HttpProvider].
     /// New trust factor must be in valid range, panic otherwise.
-    pub fn set_trust_factor(&mut self, provider: HttpProvider, new_trust_factor: usize) {
+    pub fn set_trust_factor(&mut self, provider: &HttpProvider, new_trust_factor: usize) {
         assert!(Self::is_valid(new_trust_factor));
-        self.custom.insert(provider, new_trust_factor);
+        self.custom.insert(*provider, new_trust_factor);
     }
 
     /// Calculates and returns the **confirmation number** that must be achieved

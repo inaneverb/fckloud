@@ -1,12 +1,13 @@
 use {
     crate::build_info::ENV_PREFIX,
-    anyhow::{Result, ensure},
+    anyhow::{Result, anyhow, bail, ensure},
     clap::{
         Args as ClapArgs,
         builder::{PossibleValuesParser, TypedValueParser},
     },
     const_format::concatcp,
-    ndhcp::{HttpProvider, HttpProviders},
+    ndhcp::{HttpProvider, HttpProviders, TrustFactorAuthority},
+    std::str::FromStr,
     strum::{VariantArray, VariantNames},
 };
 
@@ -67,6 +68,17 @@ pub struct OfProviders {
     /// Computed lately based on all providers and given `disable`.
     #[arg(skip)]
     pub enable: HttpProviders,
+
+    /// Custom trust factors of providers (1 - low, 2 - medium, 3 - high)
+    #[arg(
+        short='f',
+        long,
+        value_name("KEY=VALUE"),
+        value_parser=Self::parse_trust_factor_pair,
+        env(concatcp!(ENV_PREFIX, "TRUST_FACTOR")),
+        hide_env=true,
+    )]
+    pub trust_factor: Vec<(HttpProvider, usize)>,
 }
 
 impl OfProviders {
@@ -83,5 +95,35 @@ impl OfProviders {
         );
 
         Ok(())
+    }
+
+    // https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
+    // https://github.com/clap-rs/clap/blob/f45a32ec/examples/typed-derive.rs#L26
+    pub fn parse_trust_factor_pair(s: &str) -> Result<(HttpProvider, usize)> {
+        const MIN: usize = TrustFactorAuthority::LOW;
+        const MAX: usize = TrustFactorAuthority::HIG;
+
+        let pos = s
+            .find('=')
+            .or_else(|| s.find(':'))
+            .ok_or_else(|| anyhow!("invalid KEY=VALUE: no `=` found in `{s}`"))?;
+
+        let provider_str = &s[..pos];
+        let trust_factor_str = &s[pos + 1..];
+
+        let provider = HttpProvider::from_str(provider_str)
+            .map_err(|_| anyhow!("provider {} not found", provider_str))?;
+
+        let trust_factor = match usize::from_str(trust_factor_str)? {
+            v @MIN..=MAX => v,
+            v => bail!(
+                "incorrect trust factor {}, must be in range [{}..{}]",
+                v,
+                MIN,
+                MAX
+            ),
+        };
+
+        Ok((provider, trust_factor))
     }
 }

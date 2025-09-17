@@ -5,7 +5,7 @@ use {
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
     kubem::{AddrStatus, Manager as KubeManager},
-    ndhcp::Manager as AddrManager,
+    ndhcp::{Manager as AddrManager, TrustFactorAuthority},
     std::time::Duration as StdDuration,
     tokio::time::{Instant, sleep},
     tracing::{debug, info, warn},
@@ -137,7 +137,7 @@ impl Executable for Args {
                 ),
             );
         }
-        
+
         if let Some(confirmations) = self.confirmations {
             warn!(
                 confirmations,
@@ -158,8 +158,14 @@ impl Executable for Args {
     async fn run(self, global: args::Global) -> Result<()> {
         info!("welcome to fckloud");
 
-        let mut kube_manager = kubem::Manager::new(&self.node).await?;
-        let mut addr_manager = ndhcp::Manager::new(self.providers.enable.clone());
+        let mut tfa = TrustFactorAuthority::default();
+        self.providers
+            .trust_factor
+            .iter()
+            .for_each(|(provider, trust_factor)| tfa.set_trust_factor(provider, *trust_factor));
+
+        let mut kube_manager = KubeManager::new(&self.node).await?;
+        let mut addr_manager = AddrManager::new_with_tfa(self.providers.enable.clone(), tfa);
 
         kube_manager
             .query_current_addresses()
@@ -170,7 +176,7 @@ impl Executable for Args {
         kube_manager
             .set_dry_run(self.dry_run)
             .set_remove_unstaged(self.strict);
-        
+
         if let Some(confirmations) = self.confirmations {
             addr_manager.set_confirmations(confirmations);
         }
