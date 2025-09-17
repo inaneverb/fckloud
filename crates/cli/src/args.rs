@@ -1,5 +1,6 @@
 use {
     crate::build_info::ENV_PREFIX,
+    anyhow::{Result, ensure},
     clap::{
         Args as ClapArgs,
         builder::{PossibleValuesParser, TypedValueParser},
@@ -66,11 +67,18 @@ pub struct OfProviders {
 }
 
 impl OfProviders {
-    pub fn setup(&mut self) {
+    pub fn setup(&mut self) -> Result<()> {
         self.enable = <HttpProvider as VariantArray>::VARIANTS
             .iter()
-            .filter(|provider| self.disable.contains(*provider))
+            .filter(|provider| !self.disable.contains(*provider))
             .cloned()
             .collect();
+
+        ensure!(
+            !self.enable.is_empty(),
+            "at least one provider must be enabled"
+        );
+
+        Ok(())
     }
 }
