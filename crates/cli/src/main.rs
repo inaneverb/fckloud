@@ -39,8 +39,11 @@ pub enum Command {
 }
 
 // The interface must be implemented for a type to act as a CLI command.
-pub trait Executable {
-    fn setup(self) -> Self;
+pub trait Executable
+where
+    Self: Sized,
+{
+    fn setup(self) -> Result<Self>;
     fn run(self, global: args::Global) -> impl Future<Output = Result<()>> + Send;
 }
 
@@ -93,6 +96,13 @@ impl App {
             .with(env_filter_layer)
             .init();
     }
+
+    async fn run(self) -> Result<()> {
+        match self.command {
+            Command::Run(run_args) => run_args.setup()?.run(self.args).await,
+            Command::Test(test_args) => test_args.setup()?.run(self.args).await,
+        }
+    }
 }
 
 // The main function inside the Tokio runtime, returning an OS exit code.
@@ -103,12 +113,23 @@ async fn main_runtime(app: App) -> i32 {
     let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
 
     spawn(async move {
-        match app.command {
-            Command::Run(run_args) => run_args.setup().run(app.args).await,
-            Command::Test(test_args) => test_args.setup().run(app.args).await,
-        }
-        .unwrap_or_else(|err| shutdown_tx.send(err).discard())
+        app.run()
+            .await
+            .unwrap_or_else(|err| shutdown_tx.send(err).discard())
     });
+    
+    // spawn(async move {
+    //     let f = async || -> Result<()> {
+    //         match app.command {
+    //             Command::Run(run_args) => run_args.setup().run(app.args).await,
+    //             Command::Test(test_args) => test_args.setup().run(app.args).await,
+    //         }
+    //     };
+
+    //     if let Err(err) = f().await {
+    //         shutdown_tx.send(err).discard();
+    //     }
+    // });
 
     // Any occurred error is to send to the `shutdown_tx`,
     // thus interrupting the workflow and the whole application itself.

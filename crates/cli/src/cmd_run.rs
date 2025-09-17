@@ -122,8 +122,8 @@ impl Args {
 
 impl Executable for Args {
     // The preparation for [run], that adjusts some parameters if they had to.
-    fn setup(mut self) -> Self {
-        self.providers.setup();
+    fn setup(mut self) -> Result<Self> {
+        self.providers.setup()?;
 
         self.confirmations = self
             .confirmations
@@ -145,7 +145,7 @@ impl Executable for Args {
             )
         }
 
-        self
+        Ok(self)
     }
 
     // The "main" function for the "run" command.

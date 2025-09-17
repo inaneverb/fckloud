@@ -17,9 +17,9 @@ impl Args {}
 
 impl Executable for Args {
     // The preparation for [test], that adjusts some parameters if they had to.
-    fn setup(mut self) -> Self {
-        self.providers.setup();
-        self
+    fn setup(mut self) -> Result<Self> {
+        self.providers.setup()?;
+        Ok(self)
     }
 
     // The "main" function for the "test" command.
