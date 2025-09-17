@@ -4,6 +4,7 @@
 - [x] Add git commit hash and build date to the `--version` command
 - [ ] Add command `providers` to get the list of known providers and their info
 - [x] Add native ENV variables support to configure application
+- [ ] Implement case insensitivity for disabling providers via `--disable`
 
 
 ## Build

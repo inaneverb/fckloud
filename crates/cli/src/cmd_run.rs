@@ -7,7 +7,6 @@ use {
     kubem::{AddrStatus, Manager as KubeManager},
     ndhcp::Manager as AddrManager,
     std::time::Duration as StdDuration,
-    strum::EnumCount,
     tokio::time::{Instant, sleep},
     tracing::{debug, info, warn},
 };
@@ -15,7 +14,7 @@ use {
 /// The list of options for the "run" command.
 #[derive(ClapArgs)]
 pub struct Args {
-    /// The current node name the operator is running on
+    /// Node name the operator is controlling which
     #[arg(
         short,
         long,
@@ -25,18 +24,17 @@ pub struct Args {
     )]
     node: String,
 
-    /// The number of providers required for IP address to consider it public
+    /// Custom confirmation number each IP must reach to consider it confirmed
     #[arg(
         short,
         long,
         value_name("NUMBER"),
-        default_value_t = 1,
         alias("confirm"),
         alias("confirmation"),
         env(concatcp!(ENV_PREFIX, "CONFIRMATIONS")),
         hide_env=true,
     )]
-    confirmations: i32,
+    confirmations: Option<usize>,
 
     /// Perform dry run (real node addresses will not be changed)
     #[arg(long)]
@@ -74,9 +72,6 @@ pub struct Args {
 impl Args {
     const DEF_INTERVAL: StdDuration = StdDuration::from_secs(60);
     const MIN_INTERVAL: StdDuration = StdDuration::from_secs(30);
-
-    const MIN_CONFIRMATIONS: i32 = 1;
-    const MAX_CONFIRMATIONS: i32 = ndhcp::HttpProvider::COUNT as i32;
 
     // Parser for "--interval" flag.
     fn parse_flag_interval(s: &str) -> Result<DisplayedDuration> {
@@ -129,14 +124,8 @@ impl Executable for Args {
     fn setup(mut self) -> Result<Self> {
         self.providers.setup()?;
 
-        self.confirmations = self
-            .confirmations
-            .clamp(Self::MIN_CONFIRMATIONS, Self::MAX_CONFIRMATIONS);
-
         assert!(*self.interval >= Self::MIN_INTERVAL);
         assert!(!self.node.is_empty());
-        assert!(self.confirmations >= Self::MIN_CONFIRMATIONS);
-        assert!(self.confirmations <= Self::MAX_CONFIRMATIONS);
 
         if *self.interval < Self::DEF_INTERVAL {
             warn!(
@@ -146,7 +135,19 @@ impl Executable for Args {
                     "specified interval could be too short, ",
                     "many providers discourage you from using <= 1m one per IP per machine",
                 ),
-            )
+            );
+        }
+        
+        if let Some(confirmations) = self.confirmations {
+            warn!(
+                confirmations,
+                concat!(
+                    "custom confirmation number detected; ",
+                    "unwise picked such a number may lead to either ",
+                    "an inability to reach consensus for a single IP (if the threshold is too high) ",
+                    "or result in falsely reported IPs being assigned to the node (if the threshold is too low)",
+                ),
+            );
         }
 
         Ok(self)
@@ -158,7 +159,7 @@ impl Executable for Args {
         info!("welcome to fckloud");
 
         let mut kube_manager = kubem::Manager::new(&self.node).await?;
-        let addr_manager = ndhcp::Manager::new(self.providers.enable.clone());
+        let mut addr_manager = ndhcp::Manager::new(self.providers.enable.clone());
 
         kube_manager
             .query_current_addresses()
@@ -169,6 +170,10 @@ impl Executable for Args {
         kube_manager
             .set_dry_run(self.dry_run)
             .set_remove_unstaged(self.strict);
+        
+        if let Some(confirmations) = self.confirmations {
+            addr_manager.set_confirmations(confirmations);
+        }
 
         loop {
             let now = Instant::now();

@@ -10,14 +10,14 @@ use {
         net::IpAddr,
     },
     tokio::task::JoinSet,
-    tracing::{debug, error, warn},
+    tracing::{debug, error},
 };
 
 /// Manager accumulates all
 pub struct Manager {
     providers: HttpProviders,
     tfa: TrustFactorAuthority,
-    confirmations: Option<usize>,
+    confirmations: usize,
 }
 
 #[derive(Default)]
@@ -35,10 +35,12 @@ impl Manager {
 
     pub fn new_with_tfa(providers: HttpProviders, tfa: TrustFactorAuthority) -> Self {
         assert!(!providers.is_empty());
+
+        let confirmations = tfa.calc_confirmation_number(&providers);
         Self {
             providers,
             tfa,
-            confirmations: None,
+            confirmations,
         }
     }
 
@@ -46,7 +48,7 @@ impl Manager {
     /// calculated basing on the enabled providers' trust factors
     /// with the statically provided.
     pub fn set_confirmations(&mut self, new_confirmation_number: usize) -> &mut Self {
-        self.confirmations = Some(new_confirmation_number);
+        self.confirmations = new_confirmation_number;
         self
     }
 
@@ -54,31 +56,7 @@ impl Manager {
     /// has been created with, writing logs and generating and returning over all report.
     pub async fn run(&self) -> Report {
         let mut rep = Report::default();
-
-        // We are going to calculate default confirmation number
-        // even if we have provided by the user.
-
-        rep.confirmations = self.tfa.calc_confirmation_number(&self.providers);
-
-        // We will warn if it's different, because picking
-        // the bad confirmation number may lead to disasterous consequences.
-
-        if let Some(provided_confirmations) = self.confirmations
-            && provided_confirmations != rep.confirmations
-        {
-            warn!(
-                have = provided_confirmations,
-                would_be = rep.confirmations,
-                concat!(
-                    "custom confirmation number detected; ",
-                    "unwise picked such a number may lead to either ",
-                    "an inability to reach consensus for a single IP (if the threshold is too high) ",
-                    "or result in falsely reported IPs being assigned to the node (if the threshold is too low)",
-                ),
-            );
-
-            rep.confirmations = provided_confirmations;
-        }
+        rep.confirmations = self.confirmations;
 
         // Do the job, tracking all obtained IP addresses and their buckets
         // in the "unconfirmed" collection. Lately, we will move confirmed IPs out.

@@ -53,7 +53,7 @@ pub struct Global {
 
 #[derive(Clone, ClapArgs)]
 pub struct OfProviders {
-    /// The list of providers that should be disabled (assuming enabled all)
+    /// List of providers that should be disabled (assuming enabled all)
     #[arg(
         long,
         value_name("PROVIDER"),
@@ -63,7 +63,7 @@ pub struct OfProviders {
     )]
     pub disable: Vec<HttpProvider>,
 
-    /// The list of enabled providers.
+    /// List of enabled providers.
     /// Computed lately based on all providers and given `disable`.
     #[arg(skip)]
     pub enable: HttpProviders,
