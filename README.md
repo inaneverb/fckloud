@@ -60,18 +60,23 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 - Protection against malfunctions when a provider returns an incorrect or suspicious unknown IP address.
 - Prevention of potential sabotage when consensus is reached by providers that should have lower trust than others.
 
----
-<small>
+<sub>
     (1) - The source of pre-defined trust factors is based on my knowledge 
     of the corresponding provider's usage prevalence. 
     This should not be taken as an ultimate truth, 
     since they are simply values that needed to be defined.<br/>
     (2) - The actual code implementation does not use this exact formula. 
     This is merely a demonstration of the underlying concept.
-</small>
+</sub>
 
 # Changelog
 
-### Upcoming release
+### v1.1.0
+- Implemented feature "Weighting providers" via trust factor and confirmation number
+- Re-purposed confirmation number (now trust factor bucket rather than just a number of providers)
+- Added parameter `--trust-factor`
+- All IPs during first run are now considered as new, even if they were attached already
 
-- Treat skipped (already attached) addresses as new ones for the first time they spotted
+### v1.0.0
+- Initial release
+- Added provider `HttpBin`
