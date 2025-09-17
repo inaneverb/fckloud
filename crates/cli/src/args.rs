@@ -30,6 +30,7 @@ pub struct Global {
         long,
         action=clap::ArgAction::Count,
         env(concatcp!(ENV_PREFIX, "VERBOSE")),
+        hide_env=true,
     )]
     pub verbose: u8,
 
@@ -45,6 +46,7 @@ pub struct Global {
         hide_default_value=true,
         hide_possible_values=true,
         env(concatcp!(ENV_PREFIX, "JSON")),
+        hide_env=true,
     )]
     pub json: bool,
 }
@@ -57,6 +59,7 @@ pub struct OfProviders {
         value_name("PROVIDER"),
         value_parser = clap_enum_variants!(HttpProvider),
         env(concatcp!(ENV_PREFIX, "DISABLE")),
+        hide_env=true,
     )]
     pub disable: Vec<HttpProvider>,
 

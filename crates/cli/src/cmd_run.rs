@@ -21,6 +21,7 @@ pub struct Args {
         long,
         value_name("NAME"),
         env(concatcp!(ENV_PREFIX, "NODE")),
+        hide_env=true,
     )]
     node: String,
 
@@ -33,6 +34,7 @@ pub struct Args {
         alias("confirm"),
         alias("confirmation"),
         env(concatcp!(ENV_PREFIX, "CONFIRMATIONS")),
+        hide_env=true,
     )]
     confirmations: i32,
 
@@ -47,6 +49,7 @@ pub struct Args {
         value_parser = Self::parse_flag_interval,
         default_value_t = DisplayedDuration::from(Self::DEF_INTERVAL),
         env(concatcp!(ENV_PREFIX, "INTERVAL")),
+        hide_env=true,
     )]
     interval: DisplayedDuration,
 
@@ -63,6 +66,7 @@ pub struct Args {
         hide_default_value=true,
         hide_possible_values=true,
         env=concatcp!(ENV_PREFIX, "STRICT"),
+        hide_env=true,
     )]
     strict: bool,
 }
