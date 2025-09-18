@@ -69,6 +69,7 @@ impl TrustFactorAuthority {
     fn default_trust_factor(provider: HttpProvider) -> usize {
         match provider {
             HttpProvider::HttpBin => Self::LOW,
+            HttpProvider::MyIpWtf => Self::MED,
         }
     }
 }

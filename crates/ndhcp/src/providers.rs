@@ -31,6 +31,8 @@ use {
 pub enum HttpProvider {
     #[display("httpbin.org")]
     HttpBin,
+    #[display("myip.wtf")]
+    MyIpWtf, // https://myip.wtf/automation
 }
 
 pub type HttpProviders = SmallVec<[HttpProvider; HttpProvider::COUNT]>;
@@ -39,18 +41,21 @@ impl HttpProvider {
     pub const fn request_uri(&self) -> &'static str {
         match self {
             Self::HttpBin => "https://httpbin.org/ip",
+            Self::MyIpWtf => "https://myip.wtf/json",
         }
     }
 
     pub const fn request_method(&self) -> Method {
         match self {
             Self::HttpBin => Method::GET,
+            Self::MyIpWtf => Method::GET,
         }
     }
 
     pub fn response_decode(&self, headers: &HeaderMap, body: Bytes) -> Result<IpAddr> {
         match self {
             Self::HttpBin => decode_httpbin(headers, body),
+            Self::MyIpWtf => decode_myipwtf(headers, body),
         }
     }
 }
@@ -65,4 +70,17 @@ fn decode_httpbin(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
         .with_context(|| unsafe { format!("cannot decode HTTP response, data: {}", b2s(&body)) })?;
 
     Ok(resp_typed.origin)
+}
+
+fn decode_myipwtf(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
+    #[derive(serde::Deserialize)]
+    struct ResponseTyped {
+        #[serde(rename = "YourFuckingIPAddress")]
+        ip_addr: IpAddr,
+    }
+    
+    let resp_typed: ResponseTyped = unjson(&body)
+        .with_context(|| unsafe { format!("cannot decode HTTP response, data: {}", b2s(&body)) })?;
+
+    Ok(resp_typed.ip_addr)
 }

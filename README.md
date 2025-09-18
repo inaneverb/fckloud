@@ -1,5 +1,12 @@
 # fckloud
 
+# Providers
+
+- https://httpbin.org/
+- :key: https://myip.wtf/
+
+Providers with :key: mark has their trust factor 2 and more (medium and higher).
+
 # Trust factor and Confirmation threshold
 
 Each implemented Provider has its own trust factor, 
@@ -55,10 +62,6 @@ and prevents your node from being assigned falsely reported IP addresses.
 Setting this value manually could potentially lead to 
 an inability to reach consensus for a single IP (if the threshold is too high) 
 or result in falsely reported IPs being assigned to the node (if the threshold is too low).
-
-## Goals and why's:
-- Protection against malfunctions when a provider returns an incorrect or suspicious unknown IP address.
-- Prevention of potential sabotage when consensus is reached by providers that should have lower trust than others.
 
 <sub>
     (1) - The source of pre-defined trust factors is based on my knowledge 
