@@ -30,10 +30,10 @@ this project builds.
 
 ## Telemetry
 
-- [ ] Implement OpenTelemetry tracing support
-- [ ] Implement Metrics support
-  - [ ] Success metrics per provider
-  - [ ] Response time of each provider
+- [x] Implement OpenTelemetry tracing support
+- [x] Implement Metrics support
+  - [x] Success metrics per provider
+  - [x] Response time of each provider
 
 
 ## Providers

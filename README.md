@@ -86,6 +86,14 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 
 # Changelog
 
+### v1.4.0
+- Added OpenTelemetry tracing over OTLP: one trace per tick, spanning every provider request and both calls to the API server
+- Added OpenTelemetry metrics for provider latency and failures, the consensus outcome, and what each round did to the node's addresses
+- Added a rolling count of provider failures over the last hour, day and month
+- Telemetry is off until an endpoint is configured, is turned off per signal or altogether by the standard `OTEL_*` variables, and never delays or fails a tick
+- A provider that cannot be reached is now only an error when its silence could have cost the round an address, and a warning when consensus did not need it
+- Provider failures carry a typed kind rather than a formatted string
+
 ### v1.3.0
 - Collapsed the three crates into one; the consensus and the Node reconciliation are pure functions now, and covered by tests
 - Renamed `ndhcp` to `pubip` and `kubem` to `node`
