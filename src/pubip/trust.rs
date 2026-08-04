@@ -61,6 +61,7 @@ impl TrustFactorAuthority {
         match provider {
             HttpProvider::HttpBin => Self::LOW,
             HttpProvider::MyIpWtf | HttpProvider::SeeIp => Self::MED,
+            HttpProvider::Ipify => Self::HIG,
         }
     }
 }
@@ -76,8 +77,8 @@ mod tests {
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::HttpBin]), 1);
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::MyIpWtf]), 2);
 
-        // Every provider there is, total 5: floor(10/3) = 3.
-        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 3);
+        // Every provider there is, total 8: floor(16/3) = 5.
+        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 5);
     }
 
     #[test]

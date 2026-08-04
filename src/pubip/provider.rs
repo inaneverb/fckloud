@@ -12,6 +12,7 @@ pub enum HttpProvider {
     HttpBin,
     MyIpWtf, // https://myip.wtf/automation
     SeeIp,   // https://seeip.org
+    Ipify,   // https://www.ipify.org
 }
 
 impl fmt::Display for HttpProvider {
@@ -28,6 +29,7 @@ impl HttpProvider {
             Self::HttpBin => "httpbin.org",
             Self::MyIpWtf => "myip.wtf",
             Self::SeeIp => "api.seeip.org",
+            Self::Ipify => "api64.ipify.org",
         }
     }
 
@@ -36,19 +38,24 @@ impl HttpProvider {
             Self::HttpBin => "https://httpbin.org/ip",
             Self::MyIpWtf => "https://myip.wtf/json",
             Self::SeeIp => "https://api.seeip.org/jsonip",
+            // `api64` answers over whichever family the connection arrived on.
+            // `api.ipify.org` publishes no AAAA, which would pin this provider
+            // to IPv4 while dual-stacked providers report the node's IPv6, and
+            // a round split between two families confirms neither address.
+            Self::Ipify => "https://api64.ipify.org/?format=json",
         }
     }
 
     pub const fn request_method(self) -> Method {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp => Method::GET,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify => Method::GET,
         }
     }
 
     /// Whether the provider takes part in consensus without being asked for.
     pub const fn enabled_by_default(self) -> bool {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp => true,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify => true,
         }
     }
 
@@ -56,7 +63,7 @@ impl HttpProvider {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
-            Self::SeeIp => decode::<IpFieldResponse>(body),
+            Self::SeeIp | Self::Ipify => decode::<IpFieldResponse>(body),
         }
     }
 }
@@ -117,13 +124,14 @@ mod tests {
 
     // One captured body per provider, trimmed of everything but the fields
     // that matter, so that a provider changing its shape fails here first.
-    const SHAPES: [(HttpProvider, &str); 3] = [
+    const SHAPES: [(HttpProvider, &str); 4] = [
         (HttpProvider::HttpBin, r#"{"origin":"1.2.3.4"}"#),
         (
             HttpProvider::MyIpWtf,
             r#"{"YourFuckingIPAddress":"1.2.3.4"}"#,
         ),
         (HttpProvider::SeeIp, r#"{"ip":"1.2.3.4"}"#),
+        (HttpProvider::Ipify, r#"{"ip":"1.2.3.4"}"#),
     ];
 
     #[test]
