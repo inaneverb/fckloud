@@ -5,7 +5,7 @@ use {
     reqwest::{Method, header::HeaderMap},
     serde_json::from_slice as unjson,
     smallvec::SmallVec,
-    std::{net::IpAddr, str::from_utf8_unchecked as b2s},
+    std::net::IpAddr,
     strum::EnumCount,
     strum_macros::{
         AsRefStr, EnumCount, EnumIter, EnumString, IntoStaticStr, VariantArray, VariantNames,
@@ -67,7 +67,7 @@ fn decode_httpbin(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
     }
 
     let resp_typed: ResponseTyped = unjson(&body)
-        .with_context(|| unsafe { format!("cannot decode HTTP response, data: {}", b2s(&body)) })?;
+        .with_context(|| format!("cannot decode HTTP response, data: {}", String::from_utf8_lossy(&body)))?;
 
     Ok(resp_typed.origin)
 }
@@ -80,7 +80,7 @@ fn decode_myipwtf(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
     }
     
     let resp_typed: ResponseTyped = unjson(&body)
-        .with_context(|| unsafe { format!("cannot decode HTTP response, data: {}", b2s(&body)) })?;
+        .with_context(|| format!("cannot decode HTTP response, data: {}", String::from_utf8_lossy(&body)))?;
 
     Ok(resp_typed.ip_addr)
 }

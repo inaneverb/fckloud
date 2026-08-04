@@ -34,7 +34,8 @@ tokio = { version = "1.45.1", features = ["full"] }
 vergen = { version = "9.0.6", features = ["build"] }
 vergen-gitcl = { version = "1.0.8" }
 
-[workspace.lints]
+[workspace.lints.rust]
+unsafe_code = "forbid"
 
 [profile.release]
 strip = true
