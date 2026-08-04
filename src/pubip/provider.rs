@@ -1,5 +1,5 @@
 use {
-    anyhow::{Context, Result},
+    crate::pubip::error::FetchError,
     reqwest::Method,
     serde::Deserialize,
     serde_json::from_slice as unjson,
@@ -36,7 +36,7 @@ impl HttpProvider {
         }
     }
 
-    pub fn response_decode(self, body: &[u8]) -> Result<IpAddr> {
+    pub fn response_decode(self, body: &[u8]) -> Result<IpAddr, FetchError> {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
@@ -72,12 +72,10 @@ impl Response for MyIpWtfResponse {
     }
 }
 
-fn decode<T: Response>(body: &[u8]) -> Result<IpAddr> {
-    let decoded: T = unjson(body).with_context(|| {
-        format!(
-            "cannot decode HTTP response, data: {}",
-            String::from_utf8_lossy(body)
-        )
+fn decode<T: Response>(body: &[u8]) -> Result<IpAddr, FetchError> {
+    let decoded: T = unjson(body).map_err(|source| FetchError::Decode {
+        body: String::from_utf8_lossy(body).into_owned(),
+        source,
     })?;
 
     Ok(decoded.into_ip_addr())
@@ -106,7 +104,8 @@ mod tests {
             .response_decode(b"<html>502 Bad Gateway</html>")
             .expect_err("HTML must not decode as an address");
 
-        assert!(format!("{err:#}").contains("502 Bad Gateway"));
+        assert_eq!(err.as_error_type(), "decode");
+        assert!(err.to_string().contains("502 Bad Gateway"));
     }
 
     #[test]
@@ -115,6 +114,6 @@ mod tests {
             .response_decode(&[0xff, 0xfe, 0x00, 0x80])
             .expect_err("garbage must not decode as an address");
 
-        assert!(!format!("{err:#}").is_empty());
+        assert!(!err.to_string().is_empty());
     }
 }

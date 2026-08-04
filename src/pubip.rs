@@ -1,12 +1,13 @@
 mod address;
 mod consensus;
+mod error;
 mod provider;
 mod trust;
 
 pub use self::{consensus::Report, provider::HttpProvider, trust::TrustFactorAuthority};
 
 use {
-    anyhow::{Context, Result, ensure},
+    self::error::FetchError,
     reqwest::Client,
     std::{net::IpAddr, sync::LazyLock, time::Duration},
     tokio::task::JoinSet,
@@ -69,7 +70,12 @@ impl Resolver {
             .filter_map(|(provider, result)| match result {
                 Ok(ip_addr) => Some((provider, ip_addr)),
                 Err(err) => {
-                    error!(%provider, err = format!("{err:#}"), "provider cannot be used");
+                    error!(
+                        %provider,
+                        error.type = err.as_error_type(),
+                        %err,
+                        "provider cannot be used",
+                    );
                     None
                 }
             })
@@ -92,24 +98,25 @@ impl Resolver {
 }
 
 /// Asks the given [`HttpProvider`] which public IP address it sees us as.
-async fn get_public_ip(provider: HttpProvider) -> Result<IpAddr> {
+async fn get_public_ip(provider: HttpProvider) -> Result<IpAddr, FetchError> {
     let response = CLIENT
         .request(provider.request_method(), provider.request_uri())
         .send()
-        .await
-        .context("provider is unreachable")?
-        .error_for_status()
-        .context("provider responded with an error")?;
+        .await?;
 
-    let body = response.bytes().await.context("cannot read the response")?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(FetchError::HttpStatus(status));
+    }
+
+    let body = response.bytes().await?;
     let ip_addr = provider.response_decode(&body)?;
 
     // A node's ExternalIP that is not routable on the Internet is a lie,
     // no matter how confidently a provider states it.
-    ensure!(
-        address::is_public(&ip_addr),
-        "provider reported a non-public address {ip_addr}"
-    );
+    if !address::is_public(&ip_addr) {
+        return Err(FetchError::NotPublic(ip_addr));
+    }
 
     Ok(ip_addr)
 }
