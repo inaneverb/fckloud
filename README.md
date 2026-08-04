@@ -23,21 +23,33 @@ You can define the confirmation threshold, but by default it is:
 
 $$
   C = \begin{cases}
-    \frac{2}{3} \sum_{k=1}^n P_k & \quad \text{if } n > 1 \\
-    P_k & \quad \text {if } n = 1
+    P_1 & \quad \text{if } n = 1 \\
+    \left\lceil \frac{2}{3} \sum_{k=1}^n P_k \right\rceil & \quad \text{if } n = 2 \\
+    \left\lfloor \frac{2}{3} \sum_{k=1}^n P_k \right\rfloor & \quad \text{if } n \geq 3
   \end{cases}, \quad
   P_k \in [1..3]
 $$
 
 where $C$ is the confirmation threshold and $P_k$ is the Provider's trust factor. 
+Two thirds is rounded up while only two providers are enabled, 
+and rounded down once there are three or more, 
+so that the threshold stays reachable without demanding unanimity. 
+The arithmetic is exact: two thirds, not an approximation of it.
+
 As mentioned above, each IP accumulates its own confirmation bucket:
 
 $$
-  C_i^{'} = \sum_{k=1}^n P_k \times P_i^{'}
+  C_i^{'} = \sum_{k=1}^n P_k \times \delta_{k,i}
 $$
 
 where $C_i^{'}$ is the i-th IP's confirmation bucket, 
-and $P_i^{'}$ indicates whether provider $P$ has confirmed the i-th IP or not<sup>2</sup> (either 1 or 0).
+and $\delta_{k,i}$ indicates whether provider $k$ has reported the i-th IP or not<sup>2</sup> (either 1 or 0). 
+The i-th IP is confirmed once $C_i^{'} \geq C$.
+
+With the two providers enabled by default — 
+`HttpBin` at trust factor $1$ and `MyIpWtf` at trust factor $2$ — 
+the total trust is $3$, so $C = \lceil 2 \rceil = 2$. 
+`MyIpWtf` alone therefore confirms an address, while `HttpBin` alone does not.
 
 The value of $P_k$ must be within the range $[1..3]$, where:
 - $1$: Lowest trust; typically assigned to a few providers. 
@@ -73,6 +85,17 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 </sub>
 
 # Changelog
+
+### v1.2.0
+- Fixed the ExternalIP patch being silently dropped by the API server; the node was never actually updated
+- Fixed the confirmation threshold arithmetic, which used `0.67` in place of two thirds and so demanded more agreement than documented
+- Fixed a total provider outage stripping the node's ExternalIPs when `--strict` is set
+- Operator no longer exits the process on a transient Kubernetes API error
+- Added SIGTERM handling, so pod deletion no longer waits out the grace period
+- Addresses that are not publicly routable are now rejected, whoever reports them
+- Provider requests now time out instead of stalling a whole iteration
+- Removed an unchecked UTF-8 assumption on provider responses
+- Replaced the `Makefile` with `mise` tasks
 
 ### v1.1.0
 - Implemented feature "Weighting providers" via trust factor and confirmation number

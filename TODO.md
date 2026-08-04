@@ -9,10 +9,11 @@
 
 ## Build
 
-- [ ] Add build solutions
-  - [x] Support `make` (`Makefile`)
-  - [ ] Support `just` (`justfile`) - https://just.systems/
-  - [ ] Support `task` (`Taskfile.yml`) - https://taskfile.dev/
+- [x] Support `mise` (`mise.toml`) - https://mise.jdx.dev/
+
+`mise` is the one build entry point. `make` was dropped in v1.2.0, and `just`
+and `task` are not planned - a second runner only splits the truth about how
+this project builds.
 
 
 ## Deploy
@@ -37,7 +38,7 @@
 
 ## Providers
 
-- [ ] Add provider https://myip.wtf/ (rate: once in 1m)
+- [x] Add provider https://myip.wtf/ (rate: once in 1m)
 - [ ] Add provider https://seeip.org/ (rate: no limits???)
 - [ ] Add provider https://www.myip.com/ (rate: no limits???)
 - [ ] Add provider https://www.ipify.org/ (rate: no limits???)
