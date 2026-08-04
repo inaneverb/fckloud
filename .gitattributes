@@ -1,0 +1,4 @@
+# LF in the repository and in the working tree, on every platform. A CRLF
+# checkout makes the tree inside the Docker build differ from HEAD, which is
+# how every image ended up stamped as a dirty build.
+* text=auto eol=lf
