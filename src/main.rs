@@ -17,6 +17,8 @@ mod args;
 mod build_info;
 mod cmd_run;
 mod cmd_test;
+mod node;
+mod pubip;
 
 // The application itself.
 #[derive(ClapParser)]
@@ -46,7 +48,7 @@ where
     Self: Sized,
 {
     fn setup(self) -> Result<Self>;
-    fn run(self, global: args::Global) -> impl Future<Output = Result<()>> + Send;
+    fn run(self) -> impl Future<Output = Result<()>> + Send;
 }
 
 impl App {
@@ -100,8 +102,8 @@ impl App {
 
     async fn run(self) -> Result<()> {
         match self.command {
-            Command::Run(run_args) => run_args.setup()?.run(self.args).await,
-            Command::Test(test_args) => test_args.setup()?.run(self.args).await,
+            Command::Run(run_args) => run_args.setup()?.run().await,
+            Command::Test(test_args) => test_args.setup()?.run().await,
         }
     }
 }
@@ -148,7 +150,7 @@ async fn main_runtime(app: App) -> i32 {
 
     match err {
         Some(err) => {
-            error!(err = format!("{:#}", err), "critical error");
+            error!(err = format!("{err:#}"), "critical error");
             1
         }
         None => 0,

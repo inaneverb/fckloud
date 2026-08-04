@@ -1,12 +1,12 @@
 use {
     crate::build_info::ENV_PREFIX,
+    crate::pubip::{HttpProvider, TrustFactorAuthority},
     anyhow::{Result, anyhow, bail, ensure},
     clap::{
         Args as ClapArgs,
         builder::{PossibleValuesParser, TypedValueParser},
     },
     const_format::concatcp,
-    ndhcp::{HttpProvider, HttpProviders, TrustFactorAuthority},
     std::str::FromStr,
     strum::{VariantArray, VariantNames},
 };
@@ -67,7 +67,7 @@ pub struct OfProviders {
     /// List of enabled providers.
     /// Computed lately based on all providers and given `disable`.
     #[arg(skip)]
-    pub enable: HttpProviders,
+    pub enable: Vec<HttpProvider>,
 
     /// Custom trust factors of providers (1 - low, 2 - medium, 3 - high)
     #[arg(

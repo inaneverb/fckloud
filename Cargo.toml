@@ -1,57 +1,65 @@
-[workspace.package]
-version = "1.1.0"
+[package]
+name = "fckloud"
+version = "1.2.0"
 edition = "2024"
 authors = ["Ilya Stroy <inaneverb@pm.me>"]
 
-[workspace]
-resolver = "3"
-members = ["crates/cli", "crates/ndhcp", "crates/kubem"]
+[[bin]]
+name = "fckloud"
+path = "src/main.rs"
 
-[workspace.dependencies]
-anyhow = "1.0.98"
-bytes = "1.10.1"
-clap = { version = "4.5.38", features = ["derive", "env", "cargo"] }
-const_format = "0.2.34"
-derive_more = { version = "2.0.1", features = ["display", "debug"] }
-humantime = { version = "2.2.0" }
-ipnet = "2.11.0"
-k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
-kube = { version = "1.1.0", features = ["default", "derive"] }
-reqwest = { version = "0.12.15", default-features = false, features = [
-    "rustls-tls",
-] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-strum = "0.27.1"
-strum_macros = "0.27.1"
-smallvec = "1.15.1"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = [
-    "chrono",
-    "env-filter",
-    "json",
-] }
-tokio = { version = "1.45.1", features = ["full"] }
-# Pinned as a pair: these two share `vergen-lib`, and cargo cannot say so.
-vergen = { version = "=9.0.6", features = ["build"] }
-vergen-gitcl = { version = "=1.0.8" }
-
-[workspace.lints.rust]
+[lints.rust]
 unsafe_code = "forbid"
 
-[workspace.lints.clippy]
+[lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 dbg_macro = "deny"
 todo = "deny"
 unwrap_used = "deny"
 
-# Aimed at published library APIs. These crates are neither.
+# Aimed at published library APIs. This crate is not one.
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 must_use_candidate = "allow"
 module_name_repetitions = "allow"
 too_many_lines = "allow"
+
+[build-dependencies]
+anyhow = "1.0.98"
+# Pinned as a pair: these two share `vergen-lib`, and cargo cannot say so.
+vergen = { version = "=9.0.6", features = ["build"] }
+vergen-gitcl = "=1.0.8"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.38", features = ["derive", "env"] }
+const_format = "0.2.34"
+derive_more = { version = "2.0.1", features = ["display", "debug"] }
+humantime = "2.2.0"
+ipnet = "2.11.0"
+k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
+kube = "1.1.0"
+reqwest = { version = "0.12.15", default-features = false, features = [
+    "rustls-tls",
+] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+strum = { version = "0.27.1", features = ["derive"] }
+strum_macros = "0.27.1"
+tokio = { version = "1.45.1", features = [
+    "macros",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = [
+    "chrono",
+    "env-filter",
+    "json",
+] }
 
 [profile.release]
 strip = true

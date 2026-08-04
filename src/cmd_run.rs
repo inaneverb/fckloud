@@ -1,11 +1,14 @@
 use {
-    crate::{Executable, args, build_info::ENV_PREFIX},
+    crate::{
+        Executable, args,
+        build_info::ENV_PREFIX,
+        node::{AddrStatus, Manager as NodeManager},
+        pubip::{Resolver, TrustFactorAuthority},
+    },
     anyhow::{Context as _, Error, Result, bail},
     clap::Args as ClapArgs,
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
-    kubem::{AddrStatus, Manager as KubeManager},
-    ndhcp::{Manager as AddrManager, TrustFactorAuthority},
     std::time::Duration as StdDuration,
     tokio::time::{Instant, sleep},
     tracing::{debug, error, info, warn},
@@ -87,18 +90,10 @@ impl Args {
     }
 
     // One tick: ask the world where we are, then tell Kubernetes.
-    async fn job(&self, kube_manager: &mut KubeManager, addr_manager: &AddrManager) -> Result<()> {
-        addr_manager
-            .run()
-            .await
-            .confirmed
-            .iter()
-            .for_each(|ip_addr| {
-                kube_manager.stage_address(ip_addr);
-            });
+    async fn job(&self, node: &mut NodeManager, resolver: &Resolver) -> Result<()> {
+        let confirmed = resolver.run().await.confirmed.into_iter().collect();
 
-        kube_manager
-            .apply()
+        node.apply(&confirmed)
             .await
             .context("cannot apply the patch")?
             .into_iter()
@@ -148,30 +143,28 @@ impl Executable for Args {
 
     // The "main" function for the "run" command.
     // Prepares scheduler and starts the operator.
-    async fn run(self, _: args::Global) -> Result<()> {
+    async fn run(self) -> Result<()> {
         info!("welcome to fckloud");
 
         let mut tfa = TrustFactorAuthority::default();
-        self.providers
-            .trust_factor
-            .iter()
-            .for_each(|(provider, trust_factor)| tfa.set_trust_factor(provider, *trust_factor));
+        for (provider, trust_factor) in &self.providers.trust_factor {
+            tfa.set_trust_factor(*provider, *trust_factor);
+        }
 
-        let mut kube_manager = KubeManager::new(&self.node).await?;
-        let mut addr_manager = AddrManager::new_with_tfa(self.providers.enable.clone(), tfa);
+        let mut node = NodeManager::new(&self.node).await?;
+        let mut resolver = Resolver::new(self.providers.enable.clone(), tfa);
 
-        kube_manager
-            .query_current_addresses()
+        node.current_external_ips()
             .await
             .context("cannot query the current ExternalIP addresses")?
+            .iter()
             .for_each(|ip| debug!(?ip, "this ExternalIP is currently attached"));
 
-        kube_manager
-            .set_dry_run(self.dry_run)
+        node.set_dry_run(self.dry_run)
             .set_remove_unstaged(self.strict);
 
         if let Some(confirmations) = self.confirmations {
-            addr_manager.set_confirmations(confirmations);
+            resolver.set_confirmations(confirmations);
         }
 
         loop {
@@ -180,8 +173,8 @@ impl Executable for Args {
 
             // An operator that dies on a hiccup stops operating. The next tick
             // is a better answer to a flaky network than a container restart.
-            if let Err(err) = self.job(&mut kube_manager, &addr_manager).await {
-                error!(err = format!("{:#}", err), "the job execution is failed");
+            if let Err(err) = self.job(&mut node, &resolver).await {
+                error!(err = format!("{err:#}"), "the job execution is failed");
             }
 
             let elapsed = now.elapsed();

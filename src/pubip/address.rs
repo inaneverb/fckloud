@@ -19,7 +19,7 @@ pub enum Kind {
 }
 
 /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
-pub fn kind_ipv4(addr: &Ipv4Addr) -> Kind {
+pub fn kind_ipv4(addr: Ipv4Addr) -> Kind {
     static RESERVED_RAW: [(&str, Kind); 17] = [
         ("0.0.0.0/8", Kind::Loopback),
         ("10.0.0.0/8", Kind::Private),
@@ -52,7 +52,7 @@ pub fn kind_ipv4(addr: &Ipv4Addr) -> Kind {
             .collect()
     });
 
-    lookup(&RESERVED, |net| net.contains(addr))
+    lookup(&RESERVED, |net| net.contains(&addr))
 }
 
 /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
@@ -102,7 +102,7 @@ fn lookup<N>(reserved: &[(N, Kind)], contains: impl Fn(&N) -> bool) -> Kind {
 /// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
 pub fn kind(addr: &IpAddr) -> Kind {
     match addr {
-        IpAddr::V4(addr_v4) => kind_ipv4(addr_v4),
+        IpAddr::V4(addr_v4) => kind_ipv4(*addr_v4),
         IpAddr::V6(addr_v6) => kind_ipv6(addr_v6),
     }
 }

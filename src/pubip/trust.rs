@@ -1,9 +1,7 @@
-use {crate::providers::HttpProvider, std::collections::HashMap};
+use {crate::pubip::HttpProvider, std::collections::HashMap};
 
-/// Represents the mutable source of trust factors for the every known [`HttpProvider`].
-///
-/// Also provides a way to calculate confirmation number that must be achieved
-/// to consider some IP confirmed. Read more: [`Self::calc_confirmation_number`].
+/// The mutable source of trust factors for every known [`HttpProvider`], and
+/// the arithmetic that turns them into the threshold an address must reach.
 #[derive(Default)]
 pub struct TrustFactorAuthority {
     custom: HashMap<HttpProvider, usize>,
@@ -30,19 +28,13 @@ impl TrustFactorAuthority {
 
     /// Overwrites default trust factor for the given [`HttpProvider`].
     /// New trust factor must be in valid range, panic otherwise.
-    pub fn set_trust_factor(&mut self, provider: &HttpProvider, new_trust_factor: usize) {
+    pub fn set_trust_factor(&mut self, provider: HttpProvider, new_trust_factor: usize) {
         assert!(Self::is_valid(new_trust_factor));
-        self.custom.insert(*provider, new_trust_factor);
+        self.custom.insert(provider, new_trust_factor);
     }
 
     /// Calculates and returns the **confirmation number** that must be achieved
     /// by every IP to consider it confirmed.
-    ///
-    /// During the process of verification, each provider's trust factor
-    /// that reported the same IP is added to that IP's confirmation's bucket.
-    ///
-    /// When that bucket reaches the confirmation number that is returned
-    /// by this func or re-defined by the user, the IP is considered confirmed.
     ///
     /// Two thirds of the total trust, rounded up while only two providers are
     /// enabled and rounded down once there are three or more, so the threshold
@@ -51,16 +43,16 @@ impl TrustFactorAuthority {
         const NUMERATOR: usize = 2;
         const DENOMINATOR: usize = 3;
 
-        let trust_factor_total: usize = providers
+        let total: usize = providers
             .iter()
             .map(|provider| self.trust_factor(*provider))
             .sum();
 
         match providers.len() {
             0 => unreachable!("confirmation number is undefined when no providers are given"),
-            1 => trust_factor_total,
-            2 => (trust_factor_total * NUMERATOR).div_ceil(DENOMINATOR),
-            3.. => trust_factor_total * NUMERATOR / DENOMINATOR,
+            1 => total,
+            2 => (total * NUMERATOR).div_ceil(DENOMINATOR),
+            3.. => total * NUMERATOR / DENOMINATOR,
         }
     }
 
@@ -89,7 +81,7 @@ mod tests {
     #[test]
     fn confirmation_number_rounds_up_at_two_providers_and_down_beyond() {
         let mut tfa = TrustFactorAuthority::default();
-        tfa.set_trust_factor(&HttpProvider::HttpBin, TrustFactorAuthority::MED);
+        tfa.set_trust_factor(HttpProvider::HttpBin, TrustFactorAuthority::MED);
 
         // Two providers, total 4: ceil(8/3) = 3, so neither confirms alone.
         assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 3);

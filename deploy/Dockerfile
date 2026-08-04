@@ -7,7 +7,8 @@ WORKDIR /fckloud
 
 COPY .git ./.git/
 COPY Cargo.toml Cargo.lock ./
-COPY crates/ ./crates/
+COPY build.rs ./
+COPY src/ ./src/
 
 RUN cargo build --release --locked
 
