@@ -125,12 +125,12 @@ impl Manager {
     // Applies all the staged changes, mutating the real Node addresses.
     // Returns the report of what changes was made.
     //
-    // An error is returned if no addresses are staged and removing unapplied
-    // is not requested, thus preventing you from removing all ExternalIP
-    // addresses of node accidentally.
+    // An error is returned if no addresses are staged at all. Every provider
+    // being unreachable says nothing about where the node lives, and stripping
+    // its ExternalIPs over a bad minute on the Internet is not an improvement.
     pub async fn apply(&mut self) -> Result<BTreeMap<IpAddr, AddrStatus>> {
-        if self.pending.is_empty() && !self.remove_unapplied {
-            bail!("no addresses are staged and remove unapplied is not requested")
+        if self.pending.is_empty() {
+            bail!("no addresses are staged, the node is left as it is")
         }
 
         let mut out = BTreeMap::new();
