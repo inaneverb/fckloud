@@ -44,16 +44,19 @@ static CONSENSUS_ADDRESSES: LazyLock<Gauge<u64>> = LazyLock::new(|| {
         .build()
 });
 
-// These windows are process-local and start empty after a restart, which is
-// the price of reading them straight off the metric. The authoritative answer
-// over a long stretch is still increase() over the histogram above.
+// Deprecated where it stands: choosing a window is the job of whatever queries
+// the metrics, not of the process emitting them. These are process-local and
+// start empty after a restart, so they can only ever approximate what the
+// histogram above already records exactly. Kept because it shipped.
 static FAILURE_COUNT: LazyLock<ObservableGauge<u64>> = LazyLock::new(|| {
     meter()
         .u64_observable_gauge("fckloud.provider.failures")
         .with_unit("{failure}")
-        .with_description(
+        .with_description(concat!(
+            "Deprecated, count the failures of fckloud.provider.request.duration ",
+            "over the range you want instead. ",
             "Failures per provider so far in each window, which restarts once it elapses",
-        )
+        ))
         .with_callback(|observer| failures().observe(observer))
         .build()
 });
