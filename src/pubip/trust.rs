@@ -60,7 +60,7 @@ impl TrustFactorAuthority {
     fn default_trust_factor(provider: HttpProvider) -> usize {
         match provider {
             HttpProvider::HttpBin => Self::LOW,
-            HttpProvider::MyIpWtf => Self::MED,
+            HttpProvider::MyIpWtf | HttpProvider::SeeIp => Self::MED,
         }
     }
 }
@@ -75,7 +75,9 @@ mod tests {
 
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::HttpBin]), 1);
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::MyIpWtf]), 2);
-        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 2);
+
+        // Every provider there is, total 5: floor(10/3) = 3.
+        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 3);
     }
 
     #[test]
@@ -84,7 +86,8 @@ mod tests {
         tfa.set_trust_factor(HttpProvider::HttpBin, TrustFactorAuthority::MED);
 
         // Two providers, total 4: ceil(8/3) = 3, so neither confirms alone.
-        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 3);
+        let two = [HttpProvider::HttpBin, HttpProvider::MyIpWtf];
+        assert_eq!(tfa.calc_confirmation_number(&two), 3);
 
         // Three providers, total 6: floor(12/3) = 4, so two of three suffice.
         let three = [

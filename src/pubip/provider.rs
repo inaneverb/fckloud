@@ -11,6 +11,7 @@ use {
 pub enum HttpProvider {
     HttpBin,
     MyIpWtf, // https://myip.wtf/automation
+    SeeIp,   // https://seeip.org
 }
 
 impl fmt::Display for HttpProvider {
@@ -26,6 +27,7 @@ impl HttpProvider {
         match self {
             Self::HttpBin => "httpbin.org",
             Self::MyIpWtf => "myip.wtf",
+            Self::SeeIp => "api.seeip.org",
         }
     }
 
@@ -33,19 +35,20 @@ impl HttpProvider {
         match self {
             Self::HttpBin => "https://httpbin.org/ip",
             Self::MyIpWtf => "https://myip.wtf/json",
+            Self::SeeIp => "https://api.seeip.org/jsonip",
         }
     }
 
     pub const fn request_method(self) -> Method {
         match self {
-            Self::HttpBin | Self::MyIpWtf => Method::GET,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp => Method::GET,
         }
     }
 
     /// Whether the provider takes part in consensus without being asked for.
     pub const fn enabled_by_default(self) -> bool {
         match self {
-            Self::HttpBin | Self::MyIpWtf => true,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp => true,
         }
     }
 
@@ -53,6 +56,7 @@ impl HttpProvider {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
+            Self::SeeIp => decode::<IpFieldResponse>(body),
         }
     }
 }
@@ -73,6 +77,13 @@ struct MyIpWtfResponse {
     ip_addr: IpAddr,
 }
 
+/// The plainest shape there is: an `ip` field, and whatever geography the
+/// provider decided to put beside it.
+#[derive(Deserialize)]
+struct IpFieldResponse {
+    ip: IpAddr,
+}
+
 impl Response for HttpBinResponse {
     fn into_ip_addr(self) -> IpAddr {
         self.origin
@@ -82,6 +93,12 @@ impl Response for HttpBinResponse {
 impl Response for MyIpWtfResponse {
     fn into_ip_addr(self) -> IpAddr {
         self.ip_addr
+    }
+}
+
+impl Response for IpFieldResponse {
+    fn into_ip_addr(self) -> IpAddr {
+        self.ip
     }
 }
 
@@ -98,17 +115,49 @@ fn decode<T: Response>(body: &[u8]) -> Result<IpAddr, FetchError> {
 mod tests {
     use super::*;
 
+    // One captured body per provider, trimmed of everything but the fields
+    // that matter, so that a provider changing its shape fails here first.
+    const SHAPES: [(HttpProvider, &str); 3] = [
+        (HttpProvider::HttpBin, r#"{"origin":"1.2.3.4"}"#),
+        (
+            HttpProvider::MyIpWtf,
+            r#"{"YourFuckingIPAddress":"1.2.3.4"}"#,
+        ),
+        (HttpProvider::SeeIp, r#"{"ip":"1.2.3.4"}"#),
+    ];
+
     #[test]
     fn each_provider_decodes_its_own_shape() {
-        let httpbin = HttpProvider::HttpBin
-            .response_decode(br#"{"origin": "1.2.3.4"}"#)
-            .expect("httpbin shape must decode");
-        assert_eq!(httpbin.to_string(), "1.2.3.4");
+        for (provider, body) in SHAPES {
+            let decoded = provider
+                .response_decode(body.as_bytes())
+                .unwrap_or_else(|err| panic!("{provider} shape must decode: {err}"));
 
-        let myipwtf = HttpProvider::MyIpWtf
-            .response_decode(br#"{"YourFuckingIPAddress": "5.6.7.8"}"#)
-            .expect("myip.wtf shape must decode");
-        assert_eq!(myipwtf.to_string(), "5.6.7.8");
+            assert_eq!(decoded.to_string(), "1.2.3.4", "{provider} decoded wrongly");
+        }
+    }
+
+    #[test]
+    fn every_provider_has_a_captured_shape() {
+        for provider in <HttpProvider as VariantArray>::VARIANTS {
+            assert!(
+                SHAPES.iter().any(|(covered, _)| covered == provider),
+                "{provider} has no captured response body to decode",
+            );
+        }
+    }
+
+    #[test]
+    fn the_uri_of_every_provider_is_https_and_names_its_host() {
+        for provider in <HttpProvider as VariantArray>::VARIANTS {
+            let uri = provider.request_uri();
+            let expected = format!("https://{}/", provider.host());
+
+            assert!(
+                uri.starts_with(&expected),
+                "{uri} does not start {expected}"
+            );
+        }
     }
 
     #[test]
