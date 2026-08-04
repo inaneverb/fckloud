@@ -281,7 +281,7 @@ impl Manager {
             .patch_status(
                 &self.node_name,
                 &patch_params,
-                &Patch::Merge(json!({ "addresses": new_addresses })),
+                &Patch::Merge(json!({ "status": { "addresses": new_addresses } })),
             )
             .await?;
 
