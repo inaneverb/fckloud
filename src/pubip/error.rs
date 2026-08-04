@@ -32,6 +32,16 @@ impl FetchError {
             Self::NotPublic(_) => "not_public",
         }
     }
+
+    /// The status the provider answered with, if it answered at all. Kept
+    /// apart from [`Self::as_error_type`] so that a 429 stays distinguishable
+    /// from a 503 without either becoming an error kind of its own.
+    pub fn status_code(&self) -> Option<u16> {
+        match self {
+            Self::HttpStatus(status) => Some(status.as_u16()),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for FetchError {

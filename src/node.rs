@@ -1,10 +1,11 @@
+mod metrics;
 mod reconcile;
 
 pub use self::reconcile::AddrStatus;
 
 use {
     self::reconcile::{new_external_ip, parse_external_ip, reconcile},
-    anyhow::{Context, Result, bail},
+    anyhow::{Context, Error, Result, bail},
     k8s_openapi::api::core::v1::{Node, NodeAddress},
     kube::{
         Api, Client, Config,
@@ -14,7 +15,7 @@ use {
     std::{
         collections::{BTreeMap, BTreeSet},
         net::IpAddr,
-        time::Duration,
+        time::{Duration, Instant},
     },
     tracing::{Span, debug, field::Empty, instrument, warn},
 };
@@ -136,6 +137,8 @@ impl Manager {
             .record("fckloud.node.kept", tally(AddrStatus::is_skipped))
             .record("fckloud.node.removed", tally(AddrStatus::is_removed));
 
+        metrics::record_report(&report);
+
         Ok(report)
     }
 
@@ -165,26 +168,34 @@ impl Manager {
             warn!("DRY RUN REQUESTED, THE REAL NODE ADDRESSES WILL NOT BE MODIFIED");
         }
 
-        let node = self
+        let started = Instant::now();
+        let patched = self
             .api_nodes
             .patch_status(
                 &self.node_name,
                 &patch_params,
                 &Patch::Merge(json!({ "status": { "addresses": new_addresses } })),
             )
-            .await?;
+            .await
+            .map_err(Error::from);
 
-        Ok(node)
+        metrics::record_request("patch_status", started.elapsed(), patched.as_ref().err());
+        patched
     }
 
     /// Every address on the node, `InternalIP` and `Hostname` included.
     #[instrument(name = "k8s.node.get", skip_all, fields(otel.kind = "client"))]
     async fn node_addresses(&self) -> Result<Vec<NodeAddress>> {
-        let addrs = self
+        let started = Instant::now();
+        let node = self
             .api_nodes
             .get(&self.node_name)
             .await
-            .context("cannot query the requested Node")?
+            .context("cannot query the requested Node");
+
+        metrics::record_request("get", started.elapsed(), node.as_ref().err());
+
+        let addrs = node?
             .status
             .and_then(|status| status.addresses)
             .unwrap_or_default();

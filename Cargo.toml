@@ -57,6 +57,7 @@ kube = "1.1.0"
 # inside the set is two of every trait and a build that will not link. Bump
 # them together or not at all, exactly like the vergen pair above.
 opentelemetry = { version = "=0.32.0", default-features = false, features = [
+    "metrics",
     "trace",
 ] }
 opentelemetry-http = { version = "=0.32.0", default-features = false, features = [
@@ -64,10 +65,12 @@ opentelemetry-http = { version = "=0.32.0", default-features = false, features =
 ] }
 opentelemetry-otlp = { version = "=0.32.0", default-features = false, features = [
     "http-proto",
+    "metrics",
     "trace",
 ] }
 opentelemetry-semantic-conventions = { version = "=0.32.1", default-features = false }
 opentelemetry_sdk = { version = "=0.32.1", default-features = false, features = [
+    "metrics",
     "trace",
 ] }
 reqwest = { version = "0.12.15", default-features = false, features = [

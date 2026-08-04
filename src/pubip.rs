@@ -1,6 +1,7 @@
 mod address;
 mod consensus;
 mod error;
+mod metrics;
 mod provider;
 mod trust;
 
@@ -9,7 +10,11 @@ pub use self::{consensus::Report, provider::HttpProvider, trust::TrustFactorAuth
 use {
     self::error::FetchError,
     reqwest::Client,
-    std::{net::IpAddr, sync::LazyLock, time::Duration},
+    std::{
+        net::IpAddr,
+        sync::LazyLock,
+        time::{Duration, Instant},
+    },
     tokio::task::JoinSet,
     tracing::{Span, debug, error, field::Empty, instrument},
 };
@@ -94,6 +99,8 @@ impl Resolver {
             .record("fckloud.consensus.confirmed", report.confirmed.len())
             .record("fckloud.consensus.unconfirmed", report.unconfirmed.len());
 
+        metrics::record_consensus(report.confirmed.len(), report.unconfirmed.len());
+
         for ip_addr in &report.confirmed {
             debug!(?ip_addr, report.confirmations, "address has been confirmed");
         }
@@ -123,7 +130,9 @@ impl Resolver {
     error.type = Empty,
 ))]
 async fn get_public_ip(provider: HttpProvider) -> Result<IpAddr, FetchError> {
+    let started = Instant::now();
     let result = fetch(provider).await;
+    let elapsed = started.elapsed();
 
     if let Err(err) = &result {
         Span::current()
@@ -131,6 +140,7 @@ async fn get_public_ip(provider: HttpProvider) -> Result<IpAddr, FetchError> {
             .record("error.type", err.as_error_type());
     }
 
+    metrics::record_request(provider, elapsed, result.as_ref().err());
     result
 }
 

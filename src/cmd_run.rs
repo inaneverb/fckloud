@@ -4,15 +4,28 @@ use {
         build_info::ENV_PREFIX,
         node::{AddrStatus, Manager as NodeManager},
         pubip::{Resolver, TrustFactorAuthority},
+        telemetry::meter,
     },
     anyhow::{Context as _, Error, Result, bail},
     clap::Args as ClapArgs,
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
-    std::time::Duration as StdDuration,
+    opentelemetry::{KeyValue, metrics::Histogram},
+    std::{sync::LazyLock, time::Duration as StdDuration},
     tokio::time::{Instant, sleep},
     tracing::{debug, error, info, instrument, warn},
 };
+
+// Milliseconds, matching the other two histograms and the SDK's default
+// bucket boundaries. Read against the interval, this says how much of the
+// budget a tick actually spends.
+static TICK_DURATION: LazyLock<Histogram<f64>> = LazyLock::new(|| {
+    meter()
+        .f64_histogram("fckloud.tick.duration")
+        .with_unit("ms")
+        .with_description("How long a whole tick took, and whether it finished")
+        .build()
+});
 
 /// The list of options for the "run" command.
 #[derive(ClapArgs)]
@@ -175,11 +188,20 @@ impl Executable for Args {
 
             // An operator that dies on a hiccup stops operating. The next tick
             // is a better answer to a flaky network than a container restart.
-            if let Err(err) = self.job(&mut node, &resolver).await {
+            let outcome = self.job(&mut node, &resolver).await;
+            let elapsed = now.elapsed();
+
+            // The semantic conventions' catch-all: which way a tick failed is
+            // in the log and in the two histograms below it, and duplicating
+            // that taxonomy here would only give it a second place to drift.
+            let failed = [KeyValue::new("error.type", "_OTHER")];
+            let attributes: &[KeyValue] = if outcome.is_ok() { &[] } else { &failed };
+            TICK_DURATION.record(elapsed.as_secs_f64() * 1000.0, attributes);
+
+            if let Err(err) = outcome {
                 error!(err = format!("{err:#}"), "the job execution is failed");
             }
 
-            let elapsed = now.elapsed();
             let sleep_for = self.interval.saturating_sub(elapsed);
 
             debug!(

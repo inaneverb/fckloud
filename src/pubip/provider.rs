@@ -15,14 +15,20 @@ pub enum HttpProvider {
 
 impl fmt::Display for HttpProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::HttpBin => "httpbin.org",
-            Self::MyIpWtf => "myip.wtf",
-        })
+        f.write_str(self.host())
     }
 }
 
 impl HttpProvider {
+    /// The provider's host. Borrowed rather than formatted, so that using it
+    /// as a telemetry attribute costs no allocation per request.
+    pub const fn host(self) -> &'static str {
+        match self {
+            Self::HttpBin => "httpbin.org",
+            Self::MyIpWtf => "myip.wtf",
+        }
+    }
+
     pub const fn request_uri(self) -> &'static str {
         match self {
             Self::HttpBin => "https://httpbin.org/ip",
