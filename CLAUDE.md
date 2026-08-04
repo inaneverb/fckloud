@@ -60,11 +60,11 @@ work, not about how that cluster is built.
   OpenSSL), `alpine` runtime, non-root uid 65532. `.git` is part of the build
   context because vergen stamps the commit into `--version`.
 
-- The clippy set lives in `Cargo.toml` under `[workspace.lints]`, not in the
-  `lint` task. `all` and `pedantic` are denied; the handful of allows are the
-  lints written for published library crates, and each says so. `mise run lint`
-  is just `cargo clippy -- -D warnings`; keep it that way so a plain `cargo
-  clippy` gives the same verdict as CI.
+- The clippy set lives in `Cargo.toml` under `[lints]`, not in the `lint` task.
+  `all` and `pedantic` are denied; the handful of allows are the lints written
+  for published library crates, and each says so. `mise run lint` is just
+  `cargo clippy -- -D warnings`; keep it that way so a plain `cargo clippy`
+  gives the same verdict as CI.
 
 - `vergen` and `vergen-gitcl` are pinned with `=` because they share
   `vergen-lib` and cargo cannot express that they must move together. A caret
@@ -100,12 +100,24 @@ anything spun up along the way.
 
 ## Layout
 
-| Crate | Holds |
-|---|---|
-| `crates/cli` | The binary: clap arguments, subcommands, logging, the tick loop |
-| `crates/ndhcp` | Providers, trust factors, consensus, address classification |
-| `crates/kubem` | The Node addresses reconciler and its Kubernetes client |
+One crate. It was three; the boundaries cost three manifests and bought
+nothing a module cannot enforce.
 
-`kubem` knows nothing about providers and `ndhcp` knows nothing about
-Kubernetes; the `cli` crate is the only thing that has met both. Keep it that
-way.
+| Path | Holds |
+|---|---|
+| `src/main.rs`, `args.rs`, `cmd_*.rs` | Arguments, subcommands, logging, signals, the tick loop |
+| `src/pubip.rs` + `src/pubip/` | Providers, trust factors, consensus, address classification |
+| `src/node.rs` + `src/node/` | The Node addresses reconciler and its Kubernetes client |
+
+`node` knows nothing about providers and `pubip` knows nothing about
+Kubernetes; `cmd_run` is the only thing that has met both. Keep it that way —
+the module boundary is the design, the crate count was just packaging.
+
+**The decisions live in pure functions, and that is deliberate.**
+`pubip::consensus::decide` and `node::reconcile::reconcile` take plain values
+and return plain values; the `Resolver` and the `Manager` around them do the
+I/O and nothing else. Every subtle rule — what confirms an address, what gets
+added, kept, or torn off a live node — is decided in a function a test can
+call without a cluster or a network. A new rule goes in the pure function with
+a test beside it. If you find yourself needing a mock, the logic has leaked
+into the wrong half.
