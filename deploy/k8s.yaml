@@ -97,7 +97,28 @@ spec:
           value: "false"
         - name: FCKLOUD_STRICT # Remove unmatched ExternalIPs?
           value: "true"
-        
+
+        # OpenTelemetry is configured by its own standard variables, not by
+        # FCKLOUD_ ones, so that a collector sidecar or the OpenTelemetry
+        # Operator can inject them the way they already do everywhere else.
+        #
+        # Nothing is exported until an endpoint is set. There is no assumed
+        # address: these pods are on the host's network, where a guessed port
+        # belongs to whatever else is listening on it.
+        #
+        # Uncomment and point at your collector to turn it on. Set
+        # OTEL_TRACES_EXPORTER or OTEL_METRICS_EXPORTER to "none" for one
+        # signal without the other, or OTEL_SDK_DISABLED to "true" for neither.
+        #- name: OTEL_EXPORTER_OTLP_ENDPOINT
+        #  value: "http://opentelemetry-collector.observability.svc:4318"
+
+        - name: POD_NAME # Only feeds the resource attributes below
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "k8s.node.name=$(FCKLOUD_NODE),k8s.pod.name=$(POD_NAME),k8s.namespace.name=fckloud-controller"
+
         # Resource limits
         resources:
           requests:
