@@ -86,6 +86,14 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 
 # Changelog
 
+### v1.3.0
+- Collapsed the three crates into one; the consensus and the Node reconciliation are pure functions now, and covered by tests
+- Renamed `ndhcp` to `pubip` and `kubem` to `node`
+- Replaced the reserved-address tables with `std` predicates, dropping `ipnet`, `smallvec`, `bytes`, `derive_more` and `strum_macros`
+- Fixed every built image being stamped as a dirty build
+- Fixed `--version` reporting the version of the previous release
+- Pinned the working tree to LF line endings on every platform
+
 ### v1.2.0
 - Fixed the ExternalIP patch being silently dropped by the API server; the node was never actually updated
 - Fixed the confirmation threshold arithmetic, which used `0.67` in place of two thirds and so demanded more agreement than documented
