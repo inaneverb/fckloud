@@ -5,10 +5,9 @@ RUN apk add --no-cache git build-base
 
 WORKDIR /fckloud
 
-COPY .git ./.git/
-COPY Cargo.toml Cargo.lock ./
-COPY build.rs ./
-COPY src/ ./src/
+# The whole tree, not a hand-picked subset: vergen asks git whether the working
+# tree is clean, and a partial copy looks to git exactly like mass deletion.
+COPY . .
 
 RUN cargo build --release --locked
 
