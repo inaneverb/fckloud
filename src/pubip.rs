@@ -11,7 +11,7 @@ use {
     reqwest::Client,
     std::{net::IpAddr, sync::LazyLock, time::Duration},
     tokio::task::JoinSet,
-    tracing::{debug, error},
+    tracing::{Span, debug, error, field::Empty, instrument},
 };
 
 const USER_AGENT: &str = concat!("fckloud/", env!("CARGO_PKG_VERSION"));
@@ -57,6 +57,11 @@ impl Resolver {
 
     /// Polls every provider in parallel, then hands what came back to
     /// [`consensus::decide`].
+    #[instrument(name = "pubip.resolve", skip_all, fields(
+        fckloud.consensus.threshold = self.confirmations,
+        fckloud.consensus.confirmed = Empty,
+        fckloud.consensus.unconfirmed = Empty,
+    ))]
     pub async fn run(&self) -> Report {
         let reported: Vec<_> = self
             .providers
@@ -83,6 +88,12 @@ impl Resolver {
 
         let report = consensus::decide(&reported, &self.tfa, self.confirmations);
 
+        // Counts, not addresses: what an address is belongs in the log line
+        // below, where it is read once, not in a label kept forever.
+        Span::current()
+            .record("fckloud.consensus.confirmed", report.confirmed.len())
+            .record("fckloud.consensus.unconfirmed", report.unconfirmed.len());
+
         for ip_addr in &report.confirmed {
             debug!(?ip_addr, report.confirmations, "address has been confirmed");
         }
@@ -98,13 +109,40 @@ impl Resolver {
 }
 
 /// Asks the given [`HttpProvider`] which public IP address it sees us as.
+///
+/// The span is named for the HTTP method, as the semantic conventions have it
+/// for client spans; `server.address` is what tells the providers apart.
+#[instrument(name = "http.request", skip_all, fields(
+    otel.kind = "client",
+    otel.name = %provider.request_method(),
+    otel.status_code = Empty,
+    http.request.method = %provider.request_method(),
+    http.response.status_code = Empty,
+    server.address = %provider,
+    url.full = provider.request_uri(),
+    error.type = Empty,
+))]
 async fn get_public_ip(provider: HttpProvider) -> Result<IpAddr, FetchError> {
+    let result = fetch(provider).await;
+
+    if let Err(err) = &result {
+        Span::current()
+            .record("otel.status_code", "ERROR")
+            .record("error.type", err.as_error_type());
+    }
+
+    result
+}
+
+async fn fetch(provider: HttpProvider) -> Result<IpAddr, FetchError> {
     let response = CLIENT
         .request(provider.request_method(), provider.request_uri())
         .send()
         .await?;
 
     let status = response.status();
+    Span::current().record("http.response.status_code", status.as_u16());
+
     if !status.is_success() {
         return Err(FetchError::HttpStatus(status));
     }

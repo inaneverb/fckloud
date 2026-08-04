@@ -11,7 +11,7 @@ use {
     humantime::{Duration as DisplayedDuration, parse_duration},
     std::time::Duration as StdDuration,
     tokio::time::{Instant, sleep},
-    tracing::{debug, error, info, warn},
+    tracing::{debug, error, info, instrument, warn},
 };
 
 /// The list of options for the "run" command.
@@ -90,6 +90,8 @@ impl Args {
     }
 
     // One tick: ask the world where we are, then tell Kubernetes.
+    // Its own root span: nothing upstream hands this loop a trace context.
+    #[instrument(name = "fckloud.tick", skip_all)]
     async fn job(&self, node: &mut NodeManager, resolver: &Resolver) -> Result<()> {
         let confirmed = resolver.run().await.confirmed.into_iter().collect();
 

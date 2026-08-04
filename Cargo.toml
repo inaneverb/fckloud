@@ -33,11 +33,43 @@ vergen-gitcl = "=1.0.8"
 
 [dependencies]
 anyhow = "1.0.98"
+async-trait = "0.1.91"
 clap = { version = "4.5.38", features = ["derive", "env"] }
 const_format = "0.2.34"
 humantime = "2.2.0"
+# The OTLP exporter sends over the hyper stack kube already brought in. Its
+# defaults would pull aws-lc-rs, a second crypto provider next to the ring the
+# rest of the tree uses, and a C toolchain the musl build does not have.
+hyper-rustls = { version = "0.27.9", default-features = false, features = [
+    "http1",
+    "native-tokio",
+    "ring",
+    "tls12",
+] }
+hyper-util = { version = "0.1.20", default-features = false, features = [
+    "client-legacy",
+    "http1",
+    "tokio",
+] }
 k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
 kube = "1.1.0"
+# Pinned as a set: these five share types across their public APIs, and a skew
+# inside the set is two of every trait and a build that will not link. Bump
+# them together or not at all, exactly like the vergen pair above.
+opentelemetry = { version = "=0.32.0", default-features = false, features = [
+    "trace",
+] }
+opentelemetry-http = { version = "=0.32.0", default-features = false, features = [
+    "hyper",
+] }
+opentelemetry-otlp = { version = "=0.32.0", default-features = false, features = [
+    "http-proto",
+    "trace",
+] }
+opentelemetry-semantic-conventions = { version = "=0.32.1", default-features = false }
+opentelemetry_sdk = { version = "=0.32.1", default-features = false, features = [
+    "trace",
+] }
 reqwest = { version = "0.12.15", default-features = false, features = [
     "rustls-tls",
 ] }
@@ -52,6 +84,7 @@ tokio = { version = "1.45.1", features = [
     "time",
 ] }
 tracing = "0.1.41"
+tracing-opentelemetry = { version = "=0.33.0", default-features = false }
 tracing-subscriber = { version = "0.3.19", features = [
     "chrono",
     "env-filter",

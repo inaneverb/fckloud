@@ -19,6 +19,7 @@ mod cmd_run;
 mod cmd_test;
 mod node;
 mod pubip;
+mod telemetry;
 
 // The application itself.
 #[derive(ClapParser)]
@@ -52,12 +53,12 @@ where
 }
 
 impl App {
-    fn setup(mut self) -> Self {
-        self.setup_logging();
-        self
+    fn setup(mut self) -> (Self, telemetry::Guard) {
+        let telemetry = self.setup_logging();
+        (self, telemetry)
     }
 
-    fn setup_logging(&mut self) {
+    fn setup_logging(&mut self) -> telemetry::Guard {
         // https://docs.rs/chrono/latest/chrono/format/strftime/index.html
         const CONSOLE_TIME_FORMAT: &str = "%l:%M %p";
 
@@ -94,10 +95,16 @@ impl App {
             _ => "info",
         });
 
+        let (otel_layer, telemetry) = telemetry::install();
+
         tracing_subscriber::registry()
             .with(log_layer)
+            .with(otel_layer)
             .with(env_filter_layer)
             .init();
+
+        telemetry.announce();
+        telemetry
     }
 
     async fn run(self) -> Result<()> {
@@ -160,5 +167,12 @@ async fn main_runtime(app: App) -> i32 {
 // Executes the Tokio runtime main only if the application is provided
 // with valid arguments thus parsing it at first.
 fn main() {
-    exit(main_runtime(App::parse().setup()));
+    let (app, telemetry) = App::parse().setup();
+    let exit_code = main_runtime(app);
+
+    // The runtime is gone by the time we get here, which is where the last
+    // flush belongs: it blocks, and `exit` below runs no destructors.
+    telemetry.shutdown();
+
+    exit(exit_code);
 }

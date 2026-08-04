@@ -16,7 +16,7 @@ use {
         net::IpAddr,
         time::Duration,
     },
-    tracing::{debug, warn},
+    tracing::{Span, debug, field::Empty, instrument, warn},
 };
 
 /// Owns the Kubernetes side: reads the Node, hands the decision to
@@ -82,6 +82,11 @@ impl Manager {
     /// An error is returned if nothing is staged. Every provider being
     /// unreachable says nothing about where the node lives, and stripping its
     /// `ExternalIP`s over a bad minute on the Internet is not an improvement.
+    #[instrument(name = "node.apply", skip_all, fields(
+        fckloud.node.added = Empty,
+        fckloud.node.kept = Empty,
+        fckloud.node.removed = Empty,
+    ))]
     pub async fn apply(
         &mut self,
         staged: &BTreeSet<IpAddr>,
@@ -125,6 +130,12 @@ impl Manager {
             .map(|(external_ip, _)| *external_ip)
             .collect();
 
+        let tally = |wanted: fn(&AddrStatus) -> bool| report.values().filter(|s| wanted(s)).count();
+        Span::current()
+            .record("fckloud.node.added", tally(AddrStatus::is_new))
+            .record("fckloud.node.kept", tally(AddrStatus::is_skipped))
+            .record("fckloud.node.removed", tally(AddrStatus::is_removed));
+
         Ok(report)
     }
 
@@ -143,6 +154,7 @@ impl Manager {
     /// Sends the addresses as a merge patch against the `status` subresource.
     /// The `status` wrapper is not optional: without it the API server treats
     /// `addresses` as an unknown field and answers "patched (no change)".
+    #[instrument(name = "k8s.node.patch_status", skip_all, fields(otel.kind = "client"))]
     async fn send_patch(&self, new_addresses: Vec<NodeAddress>) -> Result<Node> {
         let patch_params = PatchParams {
             dry_run: self.dry_run,
@@ -166,6 +178,7 @@ impl Manager {
     }
 
     /// Every address on the node, `InternalIP` and `Hostname` included.
+    #[instrument(name = "k8s.node.get", skip_all, fields(otel.kind = "client"))]
     async fn node_addresses(&self) -> Result<Vec<NodeAddress>> {
         let addrs = self
             .api_nodes
