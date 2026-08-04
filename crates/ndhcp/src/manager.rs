@@ -13,7 +13,8 @@ use {
     tracing::{debug, error},
 };
 
-/// Manager accumulates all
+/// Polls every enabled [`HttpProvider`] and turns their answers into a verdict
+/// on which addresses this machine may call its own.
 pub struct Manager {
     providers: HttpProviders,
     tfa: TrustFactorAuthority,
@@ -33,6 +34,7 @@ impl Manager {
         Self::new_with_tfa(providers, TrustFactorAuthority::default())
     }
 
+    /// Creates a [Manager] with the given trust factors instead of the defaults.
     pub fn new_with_tfa(providers: HttpProviders, tfa: TrustFactorAuthority) -> Self {
         assert!(!providers.is_empty());
 
@@ -52,21 +54,23 @@ impl Manager {
         self
     }
 
-    /// Runs all checks one by one for all the [HttpProvider], this [Manager]
+    /// Runs all checks one by one for all the [`HttpProvider`], this [`Manager`]
     /// has been created with, writing logs and generating and returning over all report.
     pub async fn run(&self) -> Report {
-        let mut rep = Report::default();
-        rep.confirmations = self.confirmations;
+        let mut rep = Report {
+            confirmations: self.confirmations,
+            ..Report::default()
+        };
 
         // Do the job, tracking all obtained IP addresses and their buckets
         // in the "unconfirmed" collection. Lately, we will move confirmed IPs out.
 
         self.providers
             .iter()
-            .cloned()
+            .copied()
             .map(|provider| async move {
                 let result = verifier::get_public_ip(provider).await;
-                (provider, result.map_err(|err| (format!("{:#}", err), err)))
+                (provider, result.map_err(|err| (format!("{err:#}"), err)))
             })
             .collect::<JoinSet<_>>()
             .join_all()

@@ -3,6 +3,9 @@ name = "fckloud"
 version.workspace = true
 edition.workspace = true
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "fckloud"
 path = "src/main.rs"
@@ -24,4 +27,3 @@ strum.workspace = true
 
 ndhcp = { path = "../ndhcp" }
 kubem = { path = "../kubem" }
-ekacore = { path = "../ekacore" }

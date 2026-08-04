@@ -1,18 +1,15 @@
 use {
+    derive_more::{Debug, Display},
+    ipnet::{Ipv4Net, Ipv6Net},
     std::{
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
         str::FromStr,
         sync::LazyLock,
     },
-
-    derive_more::{Display, Debug},
-    ipnet::{Ipv4Net, Ipv6Net},
-    strum_macros::{EnumIs, EnumIter, EnumCount},
+    strum_macros::{EnumCount, EnumIs, EnumIter},
 };
 
-#[derive(Clone, Copy, PartialEq)]
-#[derive(Display, Debug)]
-#[derive(EnumIs, EnumIter, EnumCount)]
+#[derive(Clone, Copy, PartialEq, Display, Debug, EnumIs, EnumIter, EnumCount)]
 pub enum Kind {
     Loopback,
     Private,
@@ -21,7 +18,7 @@ pub enum Kind {
     Reserved,
 }
 
-/// https://en.wikipedia.org/wiki/Reserved_IP_addresses
+/// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
 pub fn kind_ipv4(addr: &Ipv4Addr) -> Kind {
     static RESERVED_RAW: [(&str, Kind); 17] = [
         ("0.0.0.0/8", Kind::Loopback),
@@ -46,20 +43,19 @@ pub fn kind_ipv4(addr: &Ipv4Addr) -> Kind {
     static RESERVED: LazyLock<Vec<(Ipv4Net, Kind)>> = LazyLock::new(|| {
         RESERVED_RAW
             .iter()
-            .map(|x| (Ipv4Net::from_str(x.0).unwrap(), x.1))
+            .map(|x| {
+                (
+                    Ipv4Net::from_str(x.0).expect("reserved IPv4 table is malformed"),
+                    x.1,
+                )
+            })
             .collect()
     });
 
-    for (reserved_addr, kind) in RESERVED.iter() {
-        if reserved_addr.contains(addr) {
-            return *kind;
-        }
-    }
-
-    Kind::Public
+    lookup(&RESERVED, |net| net.contains(addr))
 }
 
-/// https://en.wikipedia.org/wiki/Reserved_IP_addresses
+/// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
 pub fn kind_ipv6(addr: &Ipv6Addr) -> Kind {
     static RESERVED_RAW: [(&str, Kind); 16] = [
         ("::/128", Kind::Loopback),
@@ -83,33 +79,32 @@ pub fn kind_ipv6(addr: &Ipv6Addr) -> Kind {
     static RESERVED: LazyLock<Vec<(Ipv6Net, Kind)>> = LazyLock::new(|| {
         RESERVED_RAW
             .iter()
-            .map(|x| (Ipv6Net::from_str(x.0).unwrap(), x.1))
+            .map(|x| {
+                (
+                    Ipv6Net::from_str(x.0).expect("reserved IPv6 table is malformed"),
+                    x.1,
+                )
+            })
             .collect()
     });
 
-    for (reserved_addr, kind) in RESERVED.iter() {
-        if reserved_addr.contains(addr) {
-            return *kind;
-        }
-    }
-
-    Kind::Public
+    lookup(&RESERVED, |net| net.contains(addr))
 }
 
-/// https://en.wikipedia.org/wiki/Reserved_IP_addresses
+/// Everything the tables do not claim belongs to the Internet.
+fn lookup<N>(reserved: &[(N, Kind)], contains: impl Fn(&N) -> bool) -> Kind {
+    reserved
+        .iter()
+        .find(|(net, _)| contains(net))
+        .map_or(Kind::Public, |(_, kind)| *kind)
+}
+
+/// <https://en.wikipedia.org/wiki/Reserved_IP_addresses>
 pub fn kind(addr: &IpAddr) -> Kind {
     match addr {
         IpAddr::V4(addr_v4) => kind_ipv4(addr_v4),
         IpAddr::V6(addr_v6) => kind_ipv6(addr_v6),
     }
-}
-
-pub fn is_public_ipv4(addr: &Ipv4Addr) -> bool {
-    kind_ipv4(addr) == Kind::Public
-}
-
-pub fn is_public_ipv6(addr: &Ipv6Addr) -> bool {
-    kind_ipv6(addr) == Kind::Public
 }
 
 pub fn is_public(addr: &IpAddr) -> bool {

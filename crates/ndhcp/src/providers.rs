@@ -2,7 +2,8 @@ use {
     anyhow::{Context, Result},
     bytes::Bytes,
     derive_more::{Debug, Display},
-    reqwest::{Method, header::HeaderMap},
+    reqwest::Method,
+    serde::Deserialize,
     serde_json::from_slice as unjson,
     smallvec::SmallVec,
     std::net::IpAddr,
@@ -47,40 +48,53 @@ impl HttpProvider {
 
     pub const fn request_method(&self) -> Method {
         match self {
-            Self::HttpBin => Method::GET,
-            Self::MyIpWtf => Method::GET,
+            Self::HttpBin | Self::MyIpWtf => Method::GET,
         }
     }
 
-    pub fn response_decode(&self, headers: &HeaderMap, body: Bytes) -> Result<IpAddr> {
+    pub fn response_decode(&self, body: &Bytes) -> Result<IpAddr> {
         match self {
-            Self::HttpBin => decode_httpbin(headers, body),
-            Self::MyIpWtf => decode_myipwtf(headers, body),
+            Self::HttpBin => decode_json::<HttpBinResponse>(body),
+            Self::MyIpWtf => decode_json::<MyIpWtfResponse>(body),
         }
     }
 }
 
-fn decode_httpbin(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
-    #[derive(serde::Deserialize)]
-    struct ResponseTyped {
-        origin: IpAddr,
-    }
-
-    let resp_typed: ResponseTyped = unjson(&body)
-        .with_context(|| format!("cannot decode HTTP response, data: {}", String::from_utf8_lossy(&body)))?;
-
-    Ok(resp_typed.origin)
+/// What every provider's response boils down to, whatever it calls the field.
+trait Response: for<'de> Deserialize<'de> {
+    fn into_ip_addr(self) -> IpAddr;
 }
 
-fn decode_myipwtf(_: &HeaderMap, body: Bytes) -> Result<IpAddr> {
-    #[derive(serde::Deserialize)]
-    struct ResponseTyped {
-        #[serde(rename = "YourFuckingIPAddress")]
-        ip_addr: IpAddr,
-    }
-    
-    let resp_typed: ResponseTyped = unjson(&body)
-        .with_context(|| format!("cannot decode HTTP response, data: {}", String::from_utf8_lossy(&body)))?;
+#[derive(Deserialize)]
+struct HttpBinResponse {
+    origin: IpAddr,
+}
 
-    Ok(resp_typed.ip_addr)
+#[derive(Deserialize)]
+struct MyIpWtfResponse {
+    #[serde(rename = "YourFuckingIPAddress")]
+    ip_addr: IpAddr,
+}
+
+impl Response for HttpBinResponse {
+    fn into_ip_addr(self) -> IpAddr {
+        self.origin
+    }
+}
+
+impl Response for MyIpWtfResponse {
+    fn into_ip_addr(self) -> IpAddr {
+        self.ip_addr
+    }
+}
+
+fn decode_json<T: Response>(body: &[u8]) -> Result<IpAddr> {
+    let decoded: T = unjson(body).with_context(|| {
+        format!(
+            "cannot decode HTTP response, data: {}",
+            String::from_utf8_lossy(body)
+        )
+    })?;
+
+    Ok(decoded.into_ip_addr())
 }

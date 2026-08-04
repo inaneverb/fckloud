@@ -1,12 +1,9 @@
-use {
-    crate::providers::{HttpProvider},
-    std::collections::HashMap,
-};
+use {crate::providers::HttpProvider, std::collections::HashMap};
 
-/// Represents the mutable source of trust factors for the every known [HttpProvider].
+/// Represents the mutable source of trust factors for the every known [`HttpProvider`].
 ///
 /// Also provides a way to calculate confirmation number that must be achieved
-/// to consider some IP confirmed. Read more: [Self::calc_confirmation_number].
+/// to consider some IP confirmed. Read more: [`Self::calc_confirmation_number`].
 #[derive(Default)]
 pub struct TrustFactorAuthority {
     custom: HashMap<HttpProvider, usize>,
@@ -19,22 +16,19 @@ impl TrustFactorAuthority {
 
     /// Reports whether given trust factor is valid or not.
     pub fn is_valid(trust_factor: usize) -> bool {
-        match trust_factor {
-            Self::LOW | Self::MED | Self::HIG => true,
-            _ => false,
-        }
+        (Self::LOW..=Self::HIG).contains(&trust_factor)
     }
 
-    /// Returns trust factor for the given [HttpProvider] that is
-    /// either defined by the user via [Self::set_trust_factor] or default one.
+    /// Returns trust factor for the given [`HttpProvider`] that is
+    /// either defined by the user via [`Self::set_trust_factor`] or default one.
     pub fn trust_factor(&self, provider: HttpProvider) -> usize {
         self.custom
             .get(&provider)
-            .cloned()
-            .unwrap_or(Self::default_trust_factor(provider))
+            .copied()
+            .unwrap_or_else(|| Self::default_trust_factor(provider))
     }
 
-    /// Overwrites default trust factor for the given [HttpProvider].
+    /// Overwrites default trust factor for the given [`HttpProvider`].
     /// New trust factor must be in valid range, panic otherwise.
     pub fn set_trust_factor(&mut self, provider: &HttpProvider, new_trust_factor: usize) {
         assert!(Self::is_valid(new_trust_factor));

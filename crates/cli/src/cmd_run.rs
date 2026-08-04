@@ -1,6 +1,6 @@
 use {
     crate::{Executable, args, build_info::ENV_PREFIX},
-    anyhow::{Context, Error, Result, bail},
+    anyhow::{Context as _, Error, Result, bail},
     clap::Args as ClapArgs,
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
@@ -55,6 +55,7 @@ pub struct Args {
     providers: args::OfProviders,
 
     /// Remove unmatched ExternalIP addresses from the node
+    #[allow(clippy::doc_markdown, reason = "this doc comment is CLI help text")]
     #[arg(
         long,
         default_value_t=false,
@@ -70,7 +71,7 @@ pub struct Args {
 }
 
 impl Args {
-    const DEF_INTERVAL: StdDuration = StdDuration::from_secs(60);
+    const DEF_INTERVAL: StdDuration = StdDuration::from_mins(1);
     const MIN_INTERVAL: StdDuration = StdDuration::from_secs(30);
 
     // Parser for "--interval" flag.
@@ -80,21 +81,13 @@ impl Args {
             v => {
                 let want_at_least: DisplayedDuration = Self::MIN_INTERVAL.into();
                 let have: DisplayedDuration = v.into();
-                bail!("must be {} or greater, get: {}", want_at_least, have)
+                bail!("must be {want_at_least} or greater, get: {have}")
             }
         }
     }
 
-    // Entry point of operator's each cronjob iteration.
-    //
-    // Creates manager, connects to the Kubernetes, scans for IP addresses,
-    // applies them to the current node and goes to sleep till the next iteration.
-    async fn job(
-        &self,
-        _: &args::Global,
-        kube_manager: &mut KubeManager,
-        addr_manager: &AddrManager,
-    ) -> Result<()> {
+    // One tick: ask the world where we are, then tell Kubernetes.
+    async fn job(&self, kube_manager: &mut KubeManager, addr_manager: &AddrManager) -> Result<()> {
         addr_manager
             .run()
             .await
@@ -107,7 +100,7 @@ impl Args {
         kube_manager
             .apply()
             .await
-            .with_context(|| format!("cannot apply the patch"))?
+            .context("cannot apply the patch")?
             .into_iter()
             .for_each(|(ip_addr, status)| match status {
                 AddrStatus::New => info!(?ip_addr, "new ExternalIP has been added"),
@@ -155,7 +148,7 @@ impl Executable for Args {
 
     // The "main" function for the "run" command.
     // Prepares scheduler and starts the operator.
-    async fn run(self, global: args::Global) -> Result<()> {
+    async fn run(self, _: args::Global) -> Result<()> {
         info!("welcome to fckloud");
 
         let mut tfa = TrustFactorAuthority::default();
@@ -170,7 +163,7 @@ impl Executable for Args {
         kube_manager
             .query_current_addresses()
             .await
-            .with_context(|| format!("cannot query the current ExternalIP addresses"))?
+            .context("cannot query the current ExternalIP addresses")?
             .for_each(|ip| debug!(?ip, "this ExternalIP is currently attached"));
 
         kube_manager
@@ -187,7 +180,7 @@ impl Executable for Args {
 
             // An operator that dies on a hiccup stops operating. The next tick
             // is a better answer to a flaky network than a container restart.
-            if let Err(err) = self.job(&global, &mut kube_manager, &addr_manager).await {
+            if let Err(err) = self.job(&mut kube_manager, &addr_manager).await {
                 error!(err = format!("{:#}", err), "the job execution is failed");
             }
 

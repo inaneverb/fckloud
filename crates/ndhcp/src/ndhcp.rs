@@ -5,20 +5,16 @@ mod trust_factor;
 pub mod address;
 pub mod verifier;
 
-use smallvec::SmallVec;
-
-use {std::net::IpAddr, strum::VariantArray};
+use {smallvec::SmallVec, std::net::IpAddr};
 
 pub use crate::{
-    manager::Manager,
+    manager::{Manager, Report},
     providers::{HttpProvider, HttpProviders},
     trust_factor::TrustFactorAuthority,
 };
 
-pub async fn resolve() -> Vec<IpAddr> {
-    resolve_by(HttpProvider::VARIANTS).await
-}
-
+/// Asks the given providers where this machine lives, and returns only the
+/// addresses enough of them agreed upon.
 pub async fn resolve_by(providers: &[HttpProvider]) -> Vec<IpAddr> {
     Manager::new(SmallVec::from_slice(providers))
         .run()
@@ -26,12 +22,4 @@ pub async fn resolve_by(providers: &[HttpProvider]) -> Vec<IpAddr> {
         .confirmed
         .into_iter()
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-    #[test]
-    fn print_reports() {}
 }

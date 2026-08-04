@@ -1,7 +1,6 @@
 use {
     anyhow::Result,
     clap::{Parser as ClapParser, Subcommand as ClapSubcommand},
-    ekacore::traits::Discard,
     std::{future::Future, process::exit},
     tokio::{select, signal, spawn, sync::mpsc},
     tracing::error,
@@ -58,19 +57,18 @@ impl App {
 
     fn setup_logging(&mut self) {
         // https://docs.rs/chrono/latest/chrono/format/strftime/index.html
-        const CONSOLE_TIME_FORMAT: &'static str = "%l:%M %p";
+        const CONSOLE_TIME_FORMAT: &str = "%l:%M %p";
 
         enum LogKind {
             HumanReadable,
             Json,
         }
 
-        let log_kind = self
-            .args
-            .json
-            // .unwrap_or(false)
-            .then_some(LogKind::Json)
-            .unwrap_or(LogKind::HumanReadable);
+        let log_kind = if self.args.json {
+            LogKind::Json
+        } else {
+            LogKind::HumanReadable
+        };
 
         let log_layer = match log_kind {
             LogKind::Json => tracing_subscriber::fmt::layer()
@@ -127,43 +125,34 @@ async fn shutdown_requested() {
 }
 
 // The main function inside the Tokio runtime, returning an OS exit code.
-// Executes the command handler and listens for SIGINT or similar signals.
+// Executes the command handler and listens for the termination signals.
 #[tokio::main]
 #[inline(never)]
 async fn main_runtime(app: App) -> i32 {
+    // Any occurred error is to send to the `shutdown_tx`,
+    // thus interrupting the workflow and the whole application itself.
+
     let (shutdown_tx, mut shutdown_rx) = mpsc::unbounded_channel();
 
     spawn(async move {
-        app.run()
-            .await
-            .unwrap_or_else(|err| shutdown_tx.send(err).discard())
+        if let Err(err) = app.run().await {
+            let _ = shutdown_tx.send(err);
+        }
     });
-    
-    // spawn(async move {
-    //     let f = async || -> Result<()> {
-    //         match app.command {
-    //             Command::Run(run_args) => run_args.setup().run(app.args).await,
-    //             Command::Test(test_args) => test_args.setup().run(app.args).await,
-    //         }
-    //     };
-
-    //     if let Err(err) = f().await {
-    //         shutdown_tx.send(err).discard();
-    //     }
-    // });
-
-    // Any occurred error is to send to the `shutdown_tx`,
-    // thus interrupting the workflow and the whole application itself.
 
     let mut err = None;
     select! {
         () = shutdown_requested() => (),
         err_recv = shutdown_rx.recv() => err = err_recv,
     }
-    if let Some(ref err) = err {
-        error!(err = format!("{:#}", err), "critical error");
+
+    match err {
+        Some(err) => {
+            error!(err = format!("{:#}", err), "critical error");
+            1
+        }
+        None => 0,
     }
-    err.and_then(|_| Some(1)).unwrap_or(0)
 }
 
 // Executes the Tokio runtime main only if the application is provided

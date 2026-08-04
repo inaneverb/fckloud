@@ -86,7 +86,7 @@ impl OfProviders {
         self.enable = <HttpProvider as VariantArray>::VARIANTS
             .iter()
             .filter(|provider| !self.disable.contains(*provider))
-            .cloned()
+            .copied()
             .collect();
 
         ensure!(
@@ -112,16 +112,11 @@ impl OfProviders {
         let trust_factor_str = &s[pos + 1..];
 
         let provider = HttpProvider::from_str(provider_str)
-            .map_err(|_| anyhow!("provider {} not found", provider_str))?;
+            .map_err(|_| anyhow!("provider {provider_str} not found"))?;
 
         let trust_factor = match usize::from_str(trust_factor_str)? {
-            v @MIN..=MAX => v,
-            v => bail!(
-                "incorrect trust factor {}, must be in range [{}..{}]",
-                v,
-                MIN,
-                MAX
-            ),
+            v @ MIN..=MAX => v,
+            v => bail!("incorrect trust factor {v}, must be in range [{MIN}..{MAX}]"),
         };
 
         Ok((provider, trust_factor))

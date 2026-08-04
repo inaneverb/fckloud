@@ -2,7 +2,6 @@ use {
     crate::{Executable, args},
     anyhow::Result,
     clap::Args as ClapArgs,
-    ndhcp,
     tracing::info,
 };
 
@@ -12,8 +11,6 @@ pub struct Args {
     #[command(flatten)]
     providers: args::OfProviders,
 }
-
-impl Args {}
 
 impl Executable for Args {
     // The preparation for [test], that adjusts some parameters if they had to.

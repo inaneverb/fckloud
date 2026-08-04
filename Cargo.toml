@@ -5,12 +5,11 @@ authors = ["Ilya Stroy <inaneverb@pm.me>"]
 
 [workspace]
 resolver = "3"
-members = ["crates/cli", "crates/ekacore", "crates/ndhcp", "crates/kubem"]
+members = ["crates/cli", "crates/ndhcp", "crates/kubem"]
 
 [workspace.dependencies]
 anyhow = "1.0.98"
 bytes = "1.10.1"
-# chrono = { version = "0.4.41" }
 clap = { version = "4.5.38", features = ["derive", "env", "cargo"] }
 const_format = "0.2.34"
 derive_more = { version = "2.0.1", features = ["display", "debug"] }
@@ -18,7 +17,9 @@ humantime = { version = "2.2.0" }
 ipnet = "2.11.0"
 k8s-openapi = { version = "0.25.0", features = ["v1_32"] }
 kube = { version = "1.1.0", features = ["default", "derive"] }
-reqwest = { version = "0.12.15" }
+reqwest = { version = "0.12.15", default-features = false, features = [
+    "rustls-tls",
+] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 strum = "0.27.1"
@@ -31,11 +32,26 @@ tracing-subscriber = { version = "0.3.19", features = [
     "json",
 ] }
 tokio = { version = "1.45.1", features = ["full"] }
-vergen = { version = "9.0.6", features = ["build"] }
-vergen-gitcl = { version = "1.0.8" }
+# Pinned as a pair: these two share `vergen-lib`, and cargo cannot say so.
+vergen = { version = "=9.0.6", features = ["build"] }
+vergen-gitcl = { version = "=1.0.8" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+
+# Aimed at published library APIs. These crates are neither.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+too_many_lines = "allow"
 
 [profile.release]
 strip = true
