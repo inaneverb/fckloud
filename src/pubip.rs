@@ -16,7 +16,7 @@ use {
         time::{Duration, Instant},
     },
     tokio::task::JoinSet,
-    tracing::{Span, debug, error, field::Empty, instrument},
+    tracing::{Span, debug, error, field::Empty, instrument, warn},
 };
 
 const USER_AGENT: &str = concat!("fckloud/", env!("CARGO_PKG_VERSION"));
@@ -68,30 +68,27 @@ impl Resolver {
         fckloud.consensus.unconfirmed = Empty,
     ))]
     pub async fn run(&self) -> Report {
-        let reported: Vec<_> = self
+        let answers = self
             .providers
             .iter()
             .copied()
             .map(|provider| async move { (provider, get_public_ip(provider).await) })
             .collect::<JoinSet<_>>()
             .join_all()
-            .await
-            .into_iter()
-            .filter_map(|(provider, result)| match result {
-                Ok(ip_addr) => Some((provider, ip_addr)),
-                Err(err) => {
-                    error!(
-                        %provider,
-                        error.type = err.as_error_type(),
-                        %err,
-                        "provider cannot be used",
-                    );
-                    None
-                }
-            })
-            .collect();
+            .await;
+
+        let mut reported = Vec::with_capacity(answers.len());
+        let mut failed = Vec::new();
+
+        for (provider, answer) in answers {
+            match answer {
+                Ok(ip_addr) => reported.push((provider, ip_addr)),
+                Err(err) => failed.push((provider, err)),
+            }
+        }
 
         let report = consensus::decide(&reported, &self.tfa, self.confirmations);
+        self.complain_about(&failed, &report);
 
         // Counts, not addresses: what an address is belongs in the log line
         // below, where it is read once, not in a label kept forever.
@@ -112,6 +109,35 @@ impl Resolver {
         }
 
         report
+    }
+
+    /// Reports the providers that could not answer, at the severity their
+    /// silence deserves.
+    ///
+    /// A provider being unreachable is routine and says nothing on its own:
+    /// what matters is whether consensus needed it. If the round confirmed
+    /// everything it was going to confirm anyway, the failure cost the node
+    /// nothing and an error only teaches the reader to ignore errors.
+    fn complain_about(&self, failed: &[(HttpProvider, FetchError)], report: &Report) {
+        let missing = failed
+            .iter()
+            .map(|(provider, _)| self.tfa.trust_factor(*provider))
+            .sum();
+
+        let mattered = consensus::missing_trust_mattered(report, missing);
+
+        for (provider, err) in failed {
+            if mattered {
+                error!(%provider, error.type = err.as_error_type(), %err, "provider cannot be used");
+            } else {
+                warn!(
+                    %provider,
+                    error.type = err.as_error_type(),
+                    %err,
+                    "provider cannot be used, consensus did not need it",
+                );
+            }
+        }
     }
 }
 
