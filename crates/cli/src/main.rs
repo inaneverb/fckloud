@@ -11,6 +11,9 @@ use {
     },
 };
 
+#[cfg(unix)]
+use tokio::signal::unix::SignalKind;
+
 mod args;
 mod build_info;
 mod cmd_run;
@@ -105,6 +108,24 @@ impl App {
     }
 }
 
+// Resolves once the orchestrator asks us to leave. Kubernetes says SIGTERM
+// first and SIGKILL later; ignoring the polite one only wastes the grace period.
+#[cfg(unix)]
+async fn shutdown_requested() {
+    let mut terminate =
+        signal::unix::signal(SignalKind::terminate()).expect("cannot subscribe to SIGTERM");
+
+    select! {
+        _ = signal::ctrl_c() => (),
+        _ = terminate.recv() => (),
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_requested() {
+    let _ = signal::ctrl_c().await;
+}
+
 // The main function inside the Tokio runtime, returning an OS exit code.
 // Executes the command handler and listens for SIGINT or similar signals.
 #[tokio::main]
@@ -136,7 +157,7 @@ async fn main_runtime(app: App) -> i32 {
 
     let mut err = None;
     select! {
-        _ = signal::ctrl_c() => (),
+        () = shutdown_requested() => (),
         err_recv = shutdown_rx.recv() => err = err_recv,
     }
     if let Some(ref err) = err {
