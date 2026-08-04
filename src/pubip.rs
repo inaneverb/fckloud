@@ -44,6 +44,7 @@ pub struct Resolver {
 impl Resolver {
     pub fn new(providers: Vec<HttpProvider>, tfa: TrustFactorAuthority) -> Self {
         assert!(!providers.is_empty());
+        metrics::register(&providers);
 
         let confirmations = tfa.calc_confirmation_number(&providers);
         Self {
