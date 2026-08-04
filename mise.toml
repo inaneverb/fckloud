@@ -1,0 +1,69 @@
+[tools]
+rust = "latest"
+
+[env]
+IMAGE = "ghcr.io/inaneverb/fckloud"
+
+[tasks.build]
+description = "Release build"
+run = "cargo build --release"
+
+[tasks.build-debug]
+description = "Debug build"
+run = "cargo build"
+
+[tasks.run]
+description = "Run in release mode"
+run = "cargo run --release"
+
+[tasks.run-debug]
+description = "Run in debug mode"
+run = "cargo run"
+
+[tasks.test]
+description = "Run tests"
+run = "cargo test --release"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "cargo clean"
+
+[tasks.fmt]
+description = "Format the sources"
+run = "cargo fmt"
+
+[tasks.lint]
+description = "Run clippy; the lint set itself lives in Cargo.toml"
+run = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+
+[tasks.audit]
+description = "Security audit of the dependency tree"
+run = "cargo audit"
+
+[tasks.outdated]
+description = "Report outdated dependencies"
+run = "cargo outdated"
+
+[tasks.check]
+description = "Format, lint and test"
+depends = ["fmt", "lint", "test"]
+
+[tasks.ci]
+description = "What CI runs: check, audit, release build"
+depends = ["check", "audit", "build"]
+
+[tasks.dev]
+description = "Debug build, then run"
+depends = ["build-debug"]
+run = "cargo run"
+
+[tasks.image]
+description = "Build the container image for the cluster architecture"
+run = "docker build --file deploy/Dockerfile --tag $IMAGE:latest ."
+
+[tasks.install-tools]
+description = "Install the toolchain components and cargo helpers the tasks need"
+run = [
+    "rustup component add rustfmt clippy",
+    "cargo install cargo-audit cargo-outdated",
+]

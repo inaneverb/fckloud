@@ -1,27 +1,19 @@
-# Debian-slim based
-FROM rust:1.88-alpine3.20 AS builder
+FROM rust:alpine AS builder
 
-# Install required build dependencies
-RUN apk add --no-cache \
-    pkgconfig \
-    openssl-dev \
-    openssl-libs-static \
-    git \
-    musl-dev \
-    make
+# git is here for vergen, which stamps the binary with the commit it came from.
+RUN apk add --no-cache git build-base
 
 WORKDIR /fckloud
 
 COPY .git ./.git/
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
-COPY Makefile ./
 
-RUN make build
+RUN cargo build --release --locked
 
 # ---------------------------------------------------------------------------- #
 
-FROM alpine:3.20
+FROM alpine:3
 
 LABEL \
     org.opencontainers.image.title="fckloud" \
