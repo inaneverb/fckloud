@@ -44,10 +44,9 @@ impl TrustFactorAuthority {
     /// When that bucket reaches the confirmation number that is returned
     /// by this func or re-defined by the user, the IP is considered confirmed.
     ///
-    /// The threshold is two thirds of the total trust, rounded up while the
-    /// providers are few enough that one of them going dark must not decide
-    /// alone, and rounded down once there are enough of them that a strict
-    /// two thirds would be unreachable in practice.
+    /// Two thirds of the total trust, rounded up while only two providers are
+    /// enabled and rounded down once there are three or more, so the threshold
+    /// stays reachable without demanding unanimity.
     pub fn calc_confirmation_number(&self, providers: &[HttpProvider]) -> usize {
         const NUMERATOR: usize = 2;
         const DENOMINATOR: usize = 3;
@@ -85,6 +84,23 @@ mod tests {
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::HttpBin]), 1);
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::MyIpWtf]), 2);
         assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 2);
+    }
+
+    #[test]
+    fn confirmation_number_rounds_up_at_two_providers_and_down_beyond() {
+        let mut tfa = TrustFactorAuthority::default();
+        tfa.set_trust_factor(&HttpProvider::HttpBin, TrustFactorAuthority::MED);
+
+        // Two providers, total 4: ceil(8/3) = 3, so neither confirms alone.
+        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 3);
+
+        // Three providers, total 6: floor(12/3) = 4, so two of three suffice.
+        let three = [
+            HttpProvider::HttpBin,
+            HttpProvider::MyIpWtf,
+            HttpProvider::MyIpWtf,
+        ];
+        assert_eq!(tfa.calc_confirmation_number(&three), 4);
     }
 
     #[test]
