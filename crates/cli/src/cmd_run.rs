@@ -8,7 +8,7 @@ use {
     ndhcp::{Manager as AddrManager, TrustFactorAuthority},
     std::time::Duration as StdDuration,
     tokio::time::{Instant, sleep},
-    tracing::{debug, info, warn},
+    tracing::{debug, error, info, warn},
 };
 
 /// The list of options for the "run" command.
@@ -185,9 +185,11 @@ impl Executable for Args {
             let now = Instant::now();
             debug!("the time has come, executing job...");
 
-            self.job(&global, &mut kube_manager, &addr_manager)
-                .await
-                .with_context(|| format!("the job execution is failed"))?;
+            // An operator that dies on a hiccup stops operating. The next tick
+            // is a better answer to a flaky network than a container restart.
+            if let Err(err) = self.job(&global, &mut kube_manager, &addr_manager).await {
+                error!(err = format!("{:#}", err), "the job execution is failed");
+            }
 
             let elapsed = now.elapsed();
             let sleep_for = self.interval.saturating_sub(elapsed);
