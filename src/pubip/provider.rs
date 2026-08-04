@@ -42,6 +42,13 @@ impl HttpProvider {
         }
     }
 
+    /// Whether the provider takes part in consensus without being asked for.
+    pub const fn enabled_by_default(self) -> bool {
+        match self {
+            Self::HttpBin | Self::MyIpWtf => true,
+        }
+    }
+
     pub fn response_decode(self, body: &[u8]) -> Result<IpAddr, FetchError> {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),

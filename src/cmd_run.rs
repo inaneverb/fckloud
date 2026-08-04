@@ -167,7 +167,7 @@ impl Executable for Args {
         }
 
         let mut node = NodeManager::new(&self.node).await?;
-        let mut resolver = Resolver::new(self.providers.enable.clone(), tfa);
+        let mut resolver = Resolver::new(self.providers.enabled.clone(), tfa);
 
         node.current_external_ips()
             .await

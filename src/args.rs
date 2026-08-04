@@ -52,28 +52,41 @@ pub struct Global {
     pub json: bool,
 }
 
-#[derive(Clone, ClapArgs)]
+#[derive(Clone, Default, ClapArgs)]
 pub struct OfProviders {
-    /// List of providers that should be disabled (assuming enabled all)
+    /// List of providers to ask, replacing the default set entirely
     #[arg(
         long,
         value_name("PROVIDER"),
+        value_delimiter = ',',
+        value_parser = clap_enum_variants!(HttpProvider),
+        env(concatcp!(ENV_PREFIX, "ENABLE")),
+        hide_env=true,
+    )]
+    pub enable: Vec<HttpProvider>,
+
+    /// List of providers that should be disabled
+    #[arg(
+        long,
+        value_name("PROVIDER"),
+        value_delimiter = ',',
         value_parser = clap_enum_variants!(HttpProvider),
         env(concatcp!(ENV_PREFIX, "DISABLE")),
         hide_env=true,
     )]
     pub disable: Vec<HttpProvider>,
 
-    /// List of enabled providers.
-    /// Computed lately based on all providers and given `disable`.
+    /// The providers this run will actually ask.
+    /// Computed lately by [`Self::setup`] from `enable` and `disable`.
     #[arg(skip)]
-    pub enable: Vec<HttpProvider>,
+    pub enabled: Vec<HttpProvider>,
 
     /// Custom trust factors of providers (1 - low, 2 - medium, 3 - high)
     #[arg(
         short='f',
         long,
         value_name("KEY=VALUE"),
+        value_delimiter=',',
         value_parser=Self::parse_trust_factor_pair,
         env(concatcp!(ENV_PREFIX, "TRUST_FACTOR")),
         hide_env=true,
@@ -82,17 +95,39 @@ pub struct OfProviders {
 }
 
 impl OfProviders {
+    /// Works out which providers this run will ask.
+    ///
+    /// `--enable` replaces the default set rather than adding to it, so that
+    /// naming the two providers you want does not also mean naming the five
+    /// you do not. `--disable` then subtracts from whichever set that left.
+    ///
+    /// ```text
+    ///   no --enable  ->  base = providers enabled by default
+    ///   --enable A B ->  base = exactly A and B
+    ///                    asked = base minus --disable, each one once
+    /// ```
     pub fn setup(&mut self) -> Result<()> {
-        self.enable = <HttpProvider as VariantArray>::VARIANTS
-            .iter()
-            .filter(|provider| !self.disable.contains(*provider))
-            .copied()
-            .collect();
+        let by_default = self.enable.is_empty();
 
-        ensure!(
-            !self.enable.is_empty(),
-            "at least one provider must be enabled"
-        );
+        let base: &[HttpProvider] = if by_default {
+            <HttpProvider as VariantArray>::VARIANTS
+        } else {
+            &self.enable
+        };
+
+        let mut enabled = Vec::with_capacity(base.len());
+        for provider in base {
+            let wanted = !by_default || provider.enabled_by_default();
+
+            // The last condition keeps a provider named twice from paying its
+            // trust factor twice into the same address' bucket.
+            if wanted && !self.disable.contains(provider) && !enabled.contains(provider) {
+                enabled.push(*provider);
+            }
+        }
+
+        ensure!(!enabled.is_empty(), "at least one provider must be enabled");
+        self.enabled = enabled;
 
         Ok(())
     }
@@ -120,5 +155,103 @@ impl OfProviders {
         };
 
         Ok((provider, trust_factor))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn asked(enable: &[HttpProvider], disable: &[HttpProvider]) -> Result<Vec<HttpProvider>> {
+        let mut providers = OfProviders {
+            enable: enable.to_vec(),
+            disable: disable.to_vec(),
+            ..OfProviders::default()
+        };
+
+        providers.setup()?;
+        Ok(providers.enabled)
+    }
+
+    fn must_ask(enable: &[HttpProvider], disable: &[HttpProvider]) -> Vec<HttpProvider> {
+        asked(enable, disable).expect("this combination must leave a provider standing")
+    }
+
+    #[test]
+    fn nothing_given_asks_the_providers_enabled_by_default() {
+        let enabled = must_ask(&[], &[]);
+
+        assert!(enabled.iter().all(|p| p.enabled_by_default()));
+        assert_eq!(
+            enabled.len(),
+            <HttpProvider as VariantArray>::VARIANTS
+                .iter()
+                .filter(|p| p.enabled_by_default())
+                .count(),
+        );
+    }
+
+    #[test]
+    fn enable_replaces_the_default_set_rather_than_adding_to_it() {
+        let enabled = must_ask(&[HttpProvider::HttpBin], &[]);
+        assert_eq!(enabled, vec![HttpProvider::HttpBin]);
+    }
+
+    #[test]
+    fn disable_subtracts_from_the_default_set() {
+        let enabled = must_ask(&[], &[HttpProvider::HttpBin]);
+
+        assert!(!enabled.contains(&HttpProvider::HttpBin));
+        assert!(enabled.contains(&HttpProvider::MyIpWtf));
+    }
+
+    #[test]
+    fn disable_subtracts_from_an_explicit_set_too() {
+        let enabled = must_ask(
+            &[HttpProvider::HttpBin, HttpProvider::MyIpWtf],
+            &[HttpProvider::HttpBin],
+        );
+
+        assert_eq!(enabled, vec![HttpProvider::MyIpWtf]);
+    }
+
+    #[test]
+    fn a_provider_named_twice_is_asked_once() {
+        let enabled = must_ask(&[HttpProvider::MyIpWtf, HttpProvider::MyIpWtf], &[]);
+        assert_eq!(enabled, vec![HttpProvider::MyIpWtf]);
+    }
+
+    #[test]
+    fn leaving_nothing_enabled_is_an_error() {
+        let disable: Vec<_> = <HttpProvider as VariantArray>::VARIANTS.to_vec();
+        assert!(asked(&[], &disable).is_err());
+    }
+
+    #[test]
+    fn a_list_of_providers_may_be_one_flag_or_several() {
+        #[derive(clap::Parser)]
+        struct Wrapper {
+            #[command(flatten)]
+            providers: OfProviders,
+        }
+
+        let parse = |args: &[&str]| {
+            <Wrapper as clap::Parser>::try_parse_from(args)
+                .expect("these arguments must parse")
+                .providers
+        };
+
+        let commas = parse(&["fckloud", "--enable", "HttpBin,MyIpWtf"]);
+        let repeats = parse(&["fckloud", "--enable", "HttpBin", "--enable", "MyIpWtf"]);
+
+        let both = vec![HttpProvider::HttpBin, HttpProvider::MyIpWtf];
+        assert_eq!(commas.enable, both);
+        assert_eq!(commas.enable, repeats.enable);
+
+        let factors = parse(&["fckloud", "--trust-factor", "HttpBin=3,MyIpWtf=1"]);
+        assert_eq!(
+            factors.trust_factor,
+            vec![(HttpProvider::HttpBin, 3), (HttpProvider::MyIpWtf, 1)],
+        );
     }
 }
