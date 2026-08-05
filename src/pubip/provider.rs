@@ -3,7 +3,7 @@ use {
     reqwest::Method,
     serde::Deserialize,
     serde_json::from_slice as unjson,
-    std::{fmt, net::IpAddr},
+    std::{fmt, net::IpAddr, time::Duration},
     strum::{EnumString, VariantArray, VariantNames},
 };
 
@@ -81,6 +81,24 @@ impl HttpProvider {
             | Self::MyIpCom
             | Self::BigDataCloud
             | Self::MyIpLa => true,
+        }
+    }
+
+    /// The shortest gap the provider asks to be left between two requests
+    /// from one machine, [`None`] when it publishes no limit.
+    ///
+    /// A published limit is honoured whether or not the provider enforces it:
+    /// `myip.wtf` answered eight requests in a few seconds without a single
+    /// 429, and asking for one a minute is still what it asks for.
+    pub const fn rate_limit(self) -> Option<Duration> {
+        match self {
+            Self::MyIpWtf => Some(Duration::from_mins(1)),
+            Self::HttpBin
+            | Self::SeeIp
+            | Self::Ipify
+            | Self::MyIpCom
+            | Self::BigDataCloud
+            | Self::MyIpLa => None,
         }
     }
 
@@ -220,6 +238,16 @@ mod tests {
                 "{uri} does not start {expected}"
             );
         }
+    }
+
+    #[test]
+    fn the_only_published_rate_limit_is_the_one_myip_wtf_asks_for() {
+        assert_eq!(
+            HttpProvider::MyIpWtf.rate_limit(),
+            Some(Duration::from_mins(1)),
+        );
+
+        assert!(HttpProvider::Ipify.rate_limit().is_none());
     }
 
     #[test]

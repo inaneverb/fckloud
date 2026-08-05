@@ -3,16 +3,19 @@ mod consensus;
 mod error;
 mod metrics;
 mod provider;
+mod ratelimit;
 mod trust;
 
 pub use self::{consensus::Report, provider::HttpProvider, trust::TrustFactorAuthority};
 
 use {
     self::error::FetchError,
+    humantime::Duration as DisplayedDuration,
     reqwest::Client,
     std::{
+        collections::HashMap,
         net::IpAddr,
-        sync::LazyLock,
+        sync::{LazyLock, Mutex, MutexGuard, PoisonError},
         time::{Duration, Instant},
     },
     tokio::task::JoinSet,
@@ -39,6 +42,9 @@ pub struct Resolver {
     providers: Vec<HttpProvider>,
     tfa: TrustFactorAuthority,
     confirmations: usize,
+
+    gaps: HashMap<HttpProvider, Duration>,
+    asked: Mutex<HashMap<HttpProvider, Instant>>,
 }
 
 impl Resolver {
@@ -51,7 +57,15 @@ impl Resolver {
             providers,
             tfa,
             confirmations,
+            gaps: HashMap::new(),
+            asked: Mutex::new(HashMap::new()),
         }
+    }
+
+    // A poisoned lock here costs one provider one round of pacing, which is
+    // cheaper than refusing to resolve at all.
+    fn asked(&self) -> MutexGuard<'_, HashMap<HttpProvider, Instant>> {
+        self.asked.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Overwrites the confirmation number that would otherwise be derived from
@@ -69,8 +83,28 @@ impl Resolver {
         fckloud.consensus.unconfirmed = Empty,
     ))]
     pub async fn run(&self) -> Report {
-        let answers = self
-            .providers
+        let now = Instant::now();
+        let split = {
+            let mut asked = self.asked();
+            let split = ratelimit::split(&self.providers, &self.gaps, &asked, now);
+
+            for provider in &split.allowed {
+                asked.insert(*provider, now);
+            }
+
+            split
+        };
+
+        for (provider, left) in &split.holding {
+            debug!(
+                %provider,
+                left = DisplayedDuration::from(*left).to_string(),
+                "provider is still serving out the gap it asks for",
+            );
+        }
+
+        let answers = split
+            .allowed
             .iter()
             .copied()
             .map(|provider| async move { (provider, get_public_ip(provider).await) })
@@ -89,7 +123,7 @@ impl Resolver {
         }
 
         let report = consensus::decide(&reported, &self.tfa, self.confirmations);
-        self.complain_about(&failed, &report);
+        self.complain_about(&failed, &split.holding, &report);
 
         // Counts, not addresses: what an address is belongs in the log line
         // below, where it is read once, not in a label kept forever.
@@ -119,10 +153,21 @@ impl Resolver {
     /// what matters is whether consensus needed it. If the round confirmed
     /// everything it was going to confirm anyway, the failure cost the node
     /// nothing and an error only teaches the reader to ignore errors.
-    fn complain_about(&self, failed: &[(HttpProvider, FetchError)], report: &Report) {
-        let missing = failed
+    /// A provider held back by its own rate limit is not a failure and is never
+    /// complained about, but its trust is as absent as a failed one's, so it
+    /// counts towards whether the silence cost the round anything.
+    fn complain_about(
+        &self,
+        failed: &[(HttpProvider, FetchError)],
+        holding: &[(HttpProvider, Duration)],
+        report: &Report,
+    ) {
+        let trust_of = |provider: &HttpProvider| self.tfa.trust_factor(*provider);
+
+        let missing: usize = failed
             .iter()
-            .map(|(provider, _)| self.tfa.trust_factor(*provider))
+            .map(|(provider, _)| trust_of(provider))
+            .chain(holding.iter().map(|(provider, _)| trust_of(provider)))
             .sum();
 
         let mattered = consensus::missing_trust_mattered(report, missing);
