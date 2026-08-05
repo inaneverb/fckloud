@@ -58,6 +58,12 @@
 - [ ] Implement "Rate limiters" (see below)
 - [x] Implement "Weighting providers" (see below)
 - [ ] Implement "Dual-stack" (see below)
+- [ ] Implement "Named provider sets" (see below)
+- [ ] Implement "Threshold over responders" (see below)
+- [ ] Implement "Removal grace" (see below)
+- [ ] Implement "Persisted pending removals" (see below)
+- [ ] Implement "Providers from a ConfigMap" (see below)
+- [ ] Implement "Non-HTTP providers" (see below)
 
 
 ## Features description
@@ -86,3 +92,66 @@ When Q reaches some threshold, let's say Q', it's assumed confirmed and ready.
 Implement support of both V4/V6 (with predictable and configurable options) stacks.
 Also implement multiple-nic support, when user has 2+ public IPv4/IPv6 NIC,
 thus having more than 1 public IP in one network stack.
+
+### Named provider sets
+
+One `--providers` replaces `--enable` and `--disable`: version and provider
+names, unioned, case insensitive, no subtraction.
+
+Versions pin, are exclusive, and resolve down to the release that last changed
+the set. Above this binary's version errors, below but unreleased warns.
+`all` is every provider including disabled ones, `trust1|2|3` (`low|med|hig`)
+the enabled ones at or above that trust, warning when one was skipped,
+`default` what the binary ships with.
+
+Tests: a released minor never changes its set, and only `all` or an explicit
+name yields a disabled provider.
+
+Old flags hidden and deprecated, both kinds together refuse to start. Log the
+resolved pool at startup. Pin `FCKLOUD_PROVIDERS` in `deploy/k8s.yaml`.
+
+### Threshold over responders
+
+Take the threshold from the trust that answered, not from what was configured,
+so an unreachable provider cannot block consensus. Floor it at 2, or at the
+total when that is less. Weight decides, never counts.
+
+Grade each round by how much of the enabled trust answered it, within the tick.
+
+`--trust-share` takes a fraction or a percent and replaces `--confirmations`,
+which pins an absolute that silently re-means itself when the set changes.
+Refuse to start when the resolved need falls below the floor or above the total.
+
+### Removal grace
+
+`--removal-grace`, a duration, defaulting to 5m. An unconfirmed address becomes
+eligible once it elapses and goes once two well answered rounds have missed it.
+Time alone never reaps, and silence never reaps.
+
+Grace below `--interval` is valid: probe out of tick to fill the window, through
+the rate limiter.
+
+`--strict` hidden and deprecated, still reaping on the first round, refusing to
+run beside `--removal-grace`.
+
+### Persisted pending removals
+
+Pending removals live in memory, so a restart gives a stale address another full
+window. Persisting them needs `nodes: patch` on top of today's `nodes/status`.
+Decide whether the privilege is worth it.
+
+### Providers from a ConfigMap
+
+Read the provider table from a ConfigMap: host, URI, JSON field, trust factor.
+Restart to pick up changes, no hot reload. Lets a provider be added or dropped
+without a release.
+
+### Non-HTTP providers
+
+Add STUN (RFC 8489) and direct-to-authoritative DNS providers, trust 1, never
+enough alone, preferring `stuns:` and DoT.
+
+Worth it for failure mode diversity, not for fewer egress rules - both need
+egress HTTP does not. DNS returns the resolver's address when a resolver is in
+the path, wrong but routable, so verify the authority answered. STUN reports the
+address of a UDP flow, which can differ from the HTTP one.
