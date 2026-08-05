@@ -68,10 +68,14 @@ impl HttpProvider {
     }
 
     /// Whether the provider takes part in consensus without being asked for.
+    ///
+    /// httpbin.org is the only one that does not: it drops close to a fifth of
+    /// the requests this controller makes, and it is a request-inspection demo
+    /// that happens to echo an address rather than a public-IP service.
     pub const fn enabled_by_default(self) -> bool {
         match self {
-            Self::HttpBin
-            | Self::MyIpWtf
+            Self::HttpBin => false,
+            Self::MyIpWtf
             | Self::SeeIp
             | Self::Ipify
             | Self::MyIpCom

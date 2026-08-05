@@ -181,6 +181,9 @@ mod tests {
     fn nothing_given_asks_the_providers_enabled_by_default() {
         let enabled = must_ask(&[], &[]);
 
+        assert!(!enabled.contains(&HttpProvider::HttpBin));
+        assert!(enabled.contains(&HttpProvider::Ipify));
+
         assert!(enabled.iter().all(|p| p.enabled_by_default()));
         assert_eq!(
             enabled.len(),
@@ -199,10 +202,10 @@ mod tests {
 
     #[test]
     fn disable_subtracts_from_the_default_set() {
-        let enabled = must_ask(&[], &[HttpProvider::HttpBin]);
+        let enabled = must_ask(&[], &[HttpProvider::Ipify]);
 
-        assert!(!enabled.contains(&HttpProvider::HttpBin));
-        assert!(enabled.contains(&HttpProvider::MyIpWtf));
+        assert!(!enabled.contains(&HttpProvider::Ipify));
+        assert!(enabled.contains(&HttpProvider::SeeIp));
     }
 
     #[test]

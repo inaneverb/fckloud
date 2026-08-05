@@ -70,6 +70,14 @@ impl TrustFactorAuthority {
 mod tests {
     use {super::*, strum::VariantArray};
 
+    fn enabled_by_default() -> Vec<HttpProvider> {
+        HttpProvider::VARIANTS
+            .iter()
+            .filter(|provider| provider.enabled_by_default())
+            .copied()
+            .collect()
+    }
+
     #[test]
     fn confirmation_number_matches_two_thirds_of_total_trust() {
         let tfa = TrustFactorAuthority::default();
@@ -97,6 +105,35 @@ mod tests {
             HttpProvider::MyIpWtf,
         ];
         assert_eq!(tfa.calc_confirmation_number(&three), 4);
+    }
+
+    #[test]
+    fn the_default_set_asks_six_providers_and_wants_seven_of_their_eleven() {
+        let tfa = TrustFactorAuthority::default();
+        let providers = enabled_by_default();
+
+        let total: usize = providers.iter().map(|p| tfa.trust_factor(*p)).sum();
+
+        assert_eq!(providers.len(), 6);
+        assert_eq!(total, 11);
+        assert_eq!(tfa.calc_confirmation_number(&providers), 7);
+    }
+
+    // No provider may confirm an address on its own under the defaults: a
+    // single compromised or confused endpoint must not be able to move a
+    // node's ExternalIP by itself.
+    #[test]
+    fn no_single_default_provider_reaches_the_default_threshold() {
+        let tfa = TrustFactorAuthority::default();
+        let providers = enabled_by_default();
+        let confirmations = tfa.calc_confirmation_number(&providers);
+
+        for provider in providers {
+            assert!(
+                tfa.trust_factor(provider) < confirmations,
+                "{provider} confirms an address alone",
+            );
+        }
     }
 
     #[test]
