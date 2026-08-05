@@ -35,15 +35,52 @@ pub struct Args {
         short,
         long,
         value_name("NAME"),
+        help_heading = "Node",
         env(concatcp!(ENV_PREFIX, "NODE")),
         hide_env=true,
     )]
     node: String,
 
+    /// How long an unconfirmed ExternalIP is left alone before it is removed,
+    /// or "never" to leave it there
+    #[allow(clippy::doc_markdown, reason = "this doc comment is CLI help text")]
+    #[arg(
+        long,
+        value_name("DURATION"),
+        help_heading = "Node",
+        value_parser = Self::parse_flag_removal_grace,
+        env(concatcp!(ENV_PREFIX, "REMOVAL_GRACE")),
+        hide_env=true,
+    )]
+    removal_grace: Option<Removal>,
+
+    /// Perform dry run (real node addresses will not be changed)
+    #[arg(long, help_heading = "Node")]
+    dry_run: bool,
+
+    /// Deprecated, use `--removal-grace` instead
+    #[arg(
+        long,
+        hide = true,
+        default_value_t=false,
+        default_missing_value="true",
+        num_args=0..=1,
+        value_name="BOOL",
+        hide_default_value=true,
+        hide_possible_values=true,
+        env=concatcp!(ENV_PREFIX, "STRICT"),
+        hide_env=true,
+    )]
+    strict: bool,
+
+    #[command(flatten)]
+    providers: args::OfProviders,
+
     /// Share of the enabled trust an address must gather: 2/3, 75% or 0.75
     #[arg(
         long,
         value_name("SHARE"),
+        help_heading = "Consensus",
         env(concatcp!(ENV_PREFIX, "TRUST_SHARE")),
         hide_env=true,
     )]
@@ -62,50 +99,17 @@ pub struct Args {
     )]
     confirmations: Option<usize>,
 
-    /// Perform dry run (real node addresses will not be changed)
-    #[arg(long)]
-    dry_run: bool,
-
     /// How often the checks must happen (must be 30s or more)
     #[arg(
         short = 't',
         long,
+        help_heading = "Scheduling",
         value_parser = Self::parse_flag_interval,
         default_value_t = DisplayedDuration::from(Self::DEF_INTERVAL),
         env(concatcp!(ENV_PREFIX, "INTERVAL")),
         hide_env=true,
     )]
     interval: DisplayedDuration,
-
-    #[command(flatten)]
-    providers: args::OfProviders,
-
-    /// How long an unconfirmed ExternalIP is left alone before it is removed,
-    /// or "never" to leave it there
-    #[allow(clippy::doc_markdown, reason = "this doc comment is CLI help text")]
-    #[arg(
-        long,
-        value_name("DURATION"),
-        value_parser = Self::parse_flag_removal_grace,
-        env(concatcp!(ENV_PREFIX, "REMOVAL_GRACE")),
-        hide_env=true,
-    )]
-    removal_grace: Option<Removal>,
-
-    /// Deprecated, use `--removal-grace` instead
-    #[arg(
-        long,
-        hide = true,
-        default_value_t=false,
-        default_missing_value="true",
-        num_args=0..=1,
-        value_name="BOOL",
-        hide_default_value=true,
-        hide_possible_values=true,
-        env=concatcp!(ENV_PREFIX, "STRICT"),
-        hide_env=true,
-    )]
-    strict: bool,
 }
 
 impl Args {

@@ -40,6 +40,7 @@ pub struct Global {
         short,
         long,
         action=clap::ArgAction::Count,
+        help_heading="Logging",
         env(concatcp!(ENV_PREFIX, "VERBOSE")),
         hide_env=true,
     )]
@@ -56,6 +57,7 @@ pub struct Global {
         value_name="BOOL",
         hide_default_value=true,
         hide_possible_values=true,
+        help_heading="Logging",
         env(concatcp!(ENV_PREFIX, "JSON")),
         hide_env=true,
     )]
@@ -70,6 +72,7 @@ pub struct OfProviders {
         long,
         value_name("NAME"),
         value_delimiter = ',',
+        help_heading = "Providers",
         value_parser = Self::parse_provider_token,
         env(concatcp!(ENV_PREFIX, "PROVIDERS")),
         hide_env=true,
@@ -116,6 +119,7 @@ pub struct OfProviders {
         value_name="BOOL",
         hide_default_value=true,
         hide_possible_values=true,
+        help_heading = "Providers",
         env(concatcp!(ENV_PREFIX, "IGNORE_RATE_LIMITS")),
         hide_env=true,
     )]
@@ -127,6 +131,7 @@ pub struct OfProviders {
         long,
         value_name("KEY=DURATION"),
         value_delimiter=',',
+        help_heading="Providers",
         value_parser=Self::parse_rate_limit_pair,
         env(concatcp!(ENV_PREFIX, "RATE_LIMIT")),
         hide_env=true,
@@ -139,6 +144,7 @@ pub struct OfProviders {
         long,
         value_name("KEY=VALUE"),
         value_delimiter=',',
+        help_heading="Consensus",
         value_parser=Self::parse_trust_factor_pair,
         env(concatcp!(ENV_PREFIX, "TRUST_FACTOR")),
         hide_env=true,
