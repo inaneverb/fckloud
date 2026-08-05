@@ -2,7 +2,11 @@
 name = "fckloud"
 version = "1.9.0"
 edition = "2024"
-authors = ["Ilya Stroy <inaneverb@pm.me>"]
+description = "Gives a Kubernetes node the ExternalIP a cloud provider would have, if there were a cloud provider"
+authors = [
+    "Ilya Stroy <inaneverb@pm.me>",
+    "Claude Opus 5 (Anthropic), v1.5.0 to v1.10.0",
+]
 
 [[bin]]
 name = "fckloud"

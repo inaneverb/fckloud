@@ -12,6 +12,7 @@ const GIT_DESCRIBE: &str = env!("VERGEN_GIT_DESCRIBE");
 
 // Standard Cargo package info
 const CARGO_PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+const CARGO_PKG_AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 
 /// Returns the short Git SHA (first 7 characters).
 fn git_sha_short() -> &'static str {
@@ -24,6 +25,20 @@ fn git_sha_short() -> &'static str {
 /// Checks if the build was made from uncommitted changes.
 fn is_dirty_build() -> bool {
     GIT_DESCRIBE.contains("dirty")
+}
+
+/// Returns the authors, one indented line each.
+///
+/// Cargo joins them with a colon, which reads as one mangled name in `--help`.
+pub fn authors() -> &'static str {
+    static AUTHORS: OnceLock<String> = OnceLock::new();
+    AUTHORS.get_or_init(|| {
+        CARGO_PKG_AUTHORS
+            .split(':')
+            .map(|author| format!("  {author}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    })
 }
 
 /// Returns the string that is shown when CLI is invoked with "--version".

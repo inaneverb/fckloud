@@ -15,6 +15,7 @@ use tokio::signal::unix::SignalKind;
 
 mod args;
 mod build_info;
+mod cmd_providers;
 mod cmd_run;
 mod cmd_test;
 mod node;
@@ -24,8 +25,20 @@ mod telemetry;
 // The application itself.
 #[derive(ClapParser)]
 #[command(version = build_info::version())]
-#[command(author, about, long_about = None)]
+#[command(author = build_info::authors(), about, long_about = None)]
 #[command(disable_help_subcommand = true)]
+// clap 4 dropped the author from its default template, so the template says
+// where it goes. Only the root command carries it; a subcommand repeating the
+// authors on every `--help` would be noise.
+#[command(help_template = "\
+{before-help}{about-with-newline}
+Authors:
+{author}
+
+{usage-heading} {usage}
+
+{all-args}{after-help}
+")]
 struct App {
     #[command(subcommand)]
     command: Command,
@@ -41,6 +54,8 @@ pub enum Command {
     Run(cmd_run::Args),
     /// Test what IP would be assigned to the machine (node)
     Test(cmd_test::Args),
+    /// List the known providers and what is known about them
+    Providers(cmd_providers::Args),
 }
 
 // The interface must be implemented for a type to act as a CLI command.
@@ -111,6 +126,7 @@ impl App {
         match self.command {
             Command::Run(run_args) => run_args.setup()?.run().await,
             Command::Test(test_args) => test_args.setup()?.run().await,
+            Command::Providers(list_args) => list_args.setup()?.run().await,
         }
     }
 }
