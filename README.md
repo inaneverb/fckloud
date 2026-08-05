@@ -101,6 +101,11 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 
 # Changelog
 
+### v1.10.0
+- Added the `providers` command, listing every provider with its trust factor, rate limit, endpoint, address families and what is known about it; `--json` prints the same thing for scripts
+- `--help` names the authors and says what the operator is for
+- Options in `--help` are grouped into Node, Providers, Consensus, Scheduling and Logging instead of one flat list
+
 ### v1.9.0
 :warning: The operator now removes an ExternalIP consensus stopped vouching for, 
 which it never did without `--strict`. 
