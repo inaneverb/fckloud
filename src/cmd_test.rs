@@ -30,6 +30,8 @@ impl Executable for Args {
             .set_rate_limits(self.providers.rate_limit.iter().copied())
             .set_ignore_rate_limits(self.providers.ignore_rate_limits);
 
+        resolver.announce();
+
         resolver
             .run()
             .await

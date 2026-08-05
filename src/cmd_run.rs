@@ -174,6 +174,8 @@ impl Executable for Args {
             resolver.set_confirmations(confirmations);
         }
 
+        resolver.announce();
+
         loop {
             let now = Instant::now();
             debug!("the time has come, executing job...");

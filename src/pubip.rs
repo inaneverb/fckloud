@@ -19,7 +19,7 @@ use {
         time::{Duration, Instant},
     },
     tokio::task::JoinSet,
-    tracing::{Span, debug, error, field::Empty, instrument, warn},
+    tracing::{Span, debug, error, field::Empty, info, instrument, warn},
 };
 
 const USER_AGENT: &str = concat!("fckloud/", env!("CARGO_PKG_VERSION"));
@@ -79,6 +79,39 @@ impl Resolver {
     // cheaper than refusing to resolve at all.
     fn asked(&self) -> MutexGuard<'_, HashMap<HttpProvider, Instant>> {
         self.asked.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// States the pool this run will actually ask and what it takes to confirm
+    /// an address with it.
+    ///
+    /// Worth a line at `info`: which providers are in play, and how much of
+    /// their trust an address needs, is the first thing anyone asks when a
+    /// round does not confirm what they expected.
+    pub fn announce(&self) {
+        for provider in &self.providers {
+            let gap = ratelimit::gap_of(*provider, &self.gaps);
+
+            info!(
+                %provider,
+                trust_factor = self.tfa.trust_factor(*provider),
+                rate_limit = gap.map(|gap| DisplayedDuration::from(gap).to_string()),
+                "provider takes part in consensus",
+            );
+        }
+
+        info!(
+            providers = self.providers.len(),
+            trust_total = self.total_trust(),
+            confirmations = self.confirmations,
+            "consensus is set",
+        );
+    }
+
+    fn total_trust(&self) -> usize {
+        self.providers
+            .iter()
+            .map(|provider| self.tfa.trust_factor(*provider))
+            .sum()
     }
 
     /// Overwrites the gap a provider asks between two requests. Zero lifts the
