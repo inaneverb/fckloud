@@ -82,6 +82,20 @@ pub struct OfProviders {
     #[arg(skip)]
     pub enabled: Vec<HttpProvider>,
 
+    /// Ask every provider every round, whatever rate limit it publishes
+    #[arg(
+        long,
+        default_value_t=false,
+        default_missing_value="true",
+        num_args=0..=1,
+        value_name="BOOL",
+        hide_default_value=true,
+        hide_possible_values=true,
+        env(concatcp!(ENV_PREFIX, "IGNORE_RATE_LIMITS")),
+        hide_env=true,
+    )]
+    pub ignore_rate_limits: bool,
+
     /// Custom rate limits of providers, zero to lift one entirely
     #[arg(
         short='r',

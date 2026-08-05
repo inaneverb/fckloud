@@ -44,6 +44,7 @@ pub struct Resolver {
     confirmations: usize,
 
     gaps: HashMap<HttpProvider, Duration>,
+    honour: ratelimit::Honour,
     asked: Mutex<HashMap<HttpProvider, Instant>>,
 }
 
@@ -58,8 +59,20 @@ impl Resolver {
             tfa,
             confirmations,
             gaps: HashMap::new(),
+            honour: ratelimit::Honour::Limits,
             asked: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Stops honouring the gaps providers ask for. The operator's call, and
+    /// their responsibility to whoever is on the other end.
+    pub fn set_ignore_rate_limits(&mut self, ignore: bool) -> &mut Self {
+        self.honour = if ignore {
+            ratelimit::Honour::Nothing
+        } else {
+            ratelimit::Honour::Limits
+        };
+        self
     }
 
     // A poisoned lock here costs one provider one round of pacing, which is
@@ -96,7 +109,7 @@ impl Resolver {
         let now = Instant::now();
         let split = {
             let mut asked = self.asked();
-            let split = ratelimit::split(&self.providers, &self.gaps, &asked, now);
+            let split = ratelimit::split(&self.providers, &self.gaps, &asked, now, self.honour);
 
             for provider in &split.allowed {
                 asked.insert(*provider, now);
