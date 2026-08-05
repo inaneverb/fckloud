@@ -299,6 +299,52 @@ mod tests {
         assert!(matches!(parse("nonsense"), Err(Rejected::Unknown(_))));
     }
 
+    // What every release asked for, written down once. A row here is a promise
+    // to everyone who pinned that version, so this test failing means either a
+    // changepoint was edited - which is the promise broken - or a new release
+    // changed the set and owes itself a line.
+    const GOLDEN: [(&str, &[&str]); 8] = [
+        ("v1.0.0", &["httpbin.org"]),
+        ("v1.1.0", &["httpbin.org"]),
+        ("v1.2.0", &["httpbin.org", "myip.wtf"]),
+        ("v1.3.0", &["httpbin.org", "myip.wtf"]),
+        ("v1.4.0", &["httpbin.org", "myip.wtf"]),
+        ("v1.5.0", &SIX),
+        ("v1.6.0", &SIX),
+        ("v1.7.0", &SIX),
+    ];
+
+    const SIX: [&str; 6] = [
+        "myip.wtf",
+        "api.seeip.org",
+        "api64.ipify.org",
+        "api.myip.com",
+        "api.bigdatacloud.net",
+        "api.myip.la",
+    ];
+
+    #[test]
+    fn every_released_set_is_still_what_it_was() {
+        for (release, expected) in GOLDEN {
+            let hosts: Vec<&str> = resolve(version(release))
+                .iter()
+                .map(|provider| provider.host())
+                .collect();
+
+            assert_eq!(hosts, expected, "the set {release} asked for has moved");
+        }
+    }
+
+    #[test]
+    fn every_release_has_a_golden_row() {
+        for release in RELEASES {
+            assert!(
+                GOLDEN.iter().any(|(at, _)| version(at) == release),
+                "{release} has no row saying what it asked for",
+            );
+        }
+    }
+
     #[test]
     fn an_unreleased_version_below_this_build_still_resolves() {
         assert!(!released(version("v1.2.7")));
