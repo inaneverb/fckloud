@@ -8,6 +8,7 @@ use {
 };
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug, EnumString, VariantArray, VariantNames)]
+#[strum(ascii_case_insensitive)]
 pub enum HttpProvider {
     HttpBin,
     MyIpWtf,      // https://myip.wtf/automation
@@ -238,6 +239,21 @@ mod tests {
                 "{uri} does not start {expected}"
             );
         }
+    }
+
+    #[test]
+    fn a_provider_name_is_matched_whatever_its_case() {
+        use std::str::FromStr;
+
+        for spelling in ["MyIpWtf", "myipwtf", "MYIPWTF", "myIpWtF"] {
+            assert_eq!(
+                HttpProvider::from_str(spelling).ok(),
+                Some(HttpProvider::MyIpWtf),
+                "{spelling} must name the same provider",
+            );
+        }
+
+        assert!(HttpProvider::from_str("my ip wtf").is_err());
     }
 
     #[test]
