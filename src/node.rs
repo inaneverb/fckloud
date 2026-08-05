@@ -1,10 +1,10 @@
 mod metrics;
 mod reconcile;
 
-pub use self::reconcile::AddrStatus;
+pub use self::reconcile::{AddrStatus, Removal};
 
 use {
-    self::reconcile::{new_external_ip, parse_external_ip, reconcile},
+    self::reconcile::{Pending, new_external_ip, parse_external_ip, reconcile},
     anyhow::{Context, Error, Result, bail},
     k8s_openapi::api::core::v1::{Node, NodeAddress},
     kube::{
@@ -27,9 +27,10 @@ pub struct Manager {
     node_name: String,
 
     dry_run: bool,
-    remove_unstaged: bool,
+    removal: Removal,
 
     previous: BTreeSet<IpAddr>,
+    pending: BTreeMap<IpAddr, Pending>,
 }
 
 impl Manager {
@@ -57,8 +58,9 @@ impl Manager {
             api_nodes: Api::all(client),
             node_name: node_name.to_owned(),
             dry_run: false,
-            remove_unstaged: false,
+            removal: Removal::Never,
             previous: BTreeSet::new(),
+            pending: BTreeMap::new(),
         };
 
         // Doubles as the "node exists and Nodes API is readable" check.
@@ -72,9 +74,15 @@ impl Manager {
         self
     }
 
-    pub fn set_remove_unstaged(&mut self, remove_unstaged: bool) -> &mut Self {
-        self.remove_unstaged = remove_unstaged;
+    pub fn set_removal(&mut self, removal: Removal) -> &mut Self {
+        self.removal = removal;
         self
+    }
+
+    /// Whether an address is waiting out its grace, and so whether the loop has
+    /// a reason to come back sooner than the interval would.
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
     }
 
     /// Brings the node's `ExternalIP`s in line with the given addresses and
@@ -91,6 +99,7 @@ impl Manager {
     pub async fn apply(
         &mut self,
         staged: &BTreeSet<IpAddr>,
+        well_answered: bool,
     ) -> Result<BTreeMap<IpAddr, AddrStatus>> {
         if staged.is_empty() {
             bail!("no addresses are staged, the node is left as it is")
@@ -106,7 +115,16 @@ impl Manager {
             current.extend(self.previous.difference(&attached).map(new_external_ip));
         }
 
-        let outcome = reconcile(current, staged, self.remove_unstaged);
+        let outcome = reconcile(
+            current,
+            staged,
+            self.removal,
+            well_answered,
+            &self.pending,
+            Instant::now(),
+        );
+
+        self.pending = outcome.pending;
 
         if outcome.has_changes {
             self.send_patch(outcome.addresses)

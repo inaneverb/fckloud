@@ -2,7 +2,7 @@ use {
     crate::{
         Executable, args,
         build_info::ENV_PREFIX,
-        node::{AddrStatus, Manager as NodeManager},
+        node::{AddrStatus, Manager as NodeManager, Removal},
         pubip::{Resolver, TrustShare},
         telemetry::meter,
     },
@@ -80,10 +80,22 @@ pub struct Args {
     #[command(flatten)]
     providers: args::OfProviders,
 
-    /// Remove unmatched ExternalIP addresses from the node
+    /// How long an unconfirmed ExternalIP is left alone before it is removed,
+    /// or "never" to leave it there
     #[allow(clippy::doc_markdown, reason = "this doc comment is CLI help text")]
     #[arg(
         long,
+        value_name("DURATION"),
+        value_parser = Self::parse_flag_removal_grace,
+        env(concatcp!(ENV_PREFIX, "REMOVAL_GRACE")),
+        hide_env=true,
+    )]
+    removal_grace: Option<Removal>,
+
+    /// Deprecated, use `--removal-grace` instead
+    #[arg(
+        long,
+        hide = true,
         default_value_t=false,
         default_missing_value="true",
         num_args=0..=1,
@@ -99,6 +111,25 @@ pub struct Args {
 impl Args {
     const DEF_INTERVAL: StdDuration = StdDuration::from_mins(1);
     const MIN_INTERVAL: StdDuration = StdDuration::from_secs(30);
+
+    const DEF_REMOVAL_GRACE: Removal = Removal::After(StdDuration::from_mins(5));
+
+    // While an address is waiting out its grace, the loop stops pacing itself
+    // by the interval: a grace shorter than the interval would otherwise never
+    // see the rounds it needs. The rate limiter still holds every provider to
+    // the gap it asks for, so a shorter tick costs nobody anything.
+    const PROBE_INTERVAL: StdDuration = StdDuration::from_secs(30);
+
+    // Parser for "--removal-grace" flag. A grace of zero still waits for the
+    // rounds that make absence evidence; only the deprecated "--strict" skips
+    // them, which is the one thing it is kept around to keep doing.
+    fn parse_flag_removal_grace(s: &str) -> Result<Removal> {
+        if s.eq_ignore_ascii_case("never") {
+            return Ok(Removal::Never);
+        }
+
+        Ok(Removal::After(parse_duration(s).map_err(Error::msg)?))
+    }
 
     // Parser for "--interval" flag.
     fn parse_flag_interval(s: &str) -> Result<DisplayedDuration> {
@@ -116,9 +147,10 @@ impl Args {
     // Its own root span: nothing upstream hands this loop a trace context.
     #[instrument(name = "fckloud.tick", skip_all)]
     async fn job(&self, node: &mut NodeManager, resolver: &Resolver) -> Result<()> {
-        let confirmed = resolver.run().await.confirmed.into_iter().collect();
+        let report = resolver.run().await;
+        let confirmed = report.confirmed.into_iter().collect();
 
-        node.apply(&confirmed)
+        node.apply(&confirmed, report.well_answered)
             .await
             .context("cannot apply the patch")?
             .into_iter()
@@ -144,6 +176,19 @@ impl Executable for Args {
             self.confirmations.is_none() || self.trust_share.is_none(),
             "--confirmations cannot be combined with --trust-share, which it replaces"
         );
+
+        ensure!(
+            !self.strict || self.removal_grace.is_none(),
+            "--strict cannot be combined with --removal-grace, which it replaces"
+        );
+
+        if self.strict {
+            warn!(concat!(
+                "--strict is deprecated, --removal-grace replaces it; ",
+                "it still tears off an unconfirmed address the same round, ",
+                "on the word of whichever providers happened to answer",
+            ));
+        }
 
         if let Some(confirmations) = self.confirmations {
             warn!(
@@ -182,8 +227,14 @@ impl Executable for Args {
             .iter()
             .for_each(|ip| debug!(?ip, "this ExternalIP is currently attached"));
 
-        node.set_dry_run(self.dry_run)
-            .set_remove_unstaged(self.strict);
+        let removal = if self.strict {
+            Removal::AtOnce
+        } else {
+            self.removal_grace.unwrap_or(Self::DEF_REMOVAL_GRACE)
+        };
+
+        node.set_dry_run(self.dry_run).set_removal(removal);
+        info!(?removal, "unconfirmed addresses are removed");
 
         if let Some(confirmations) = self.confirmations {
             resolver.set_confirmations(confirmations);
@@ -211,7 +262,13 @@ impl Executable for Args {
                 error!(err = format!("{err:#}"), "the job execution is failed");
             }
 
-            let sleep_for = self.interval.saturating_sub(elapsed);
+            let until_next = if node.has_pending() {
+                (*self.interval).min(Self::PROBE_INTERVAL)
+            } else {
+                *self.interval
+            };
+
+            let sleep_for = until_next.saturating_sub(elapsed);
 
             debug!(
                 elapsed = DisplayedDuration::from(elapsed).to_string(),
