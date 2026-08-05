@@ -44,6 +44,14 @@ work, not about how that cluster is built.
 
 - No HTML in markdown files, except where markdown genuinely has no equivalent.
 
+- **Be short and brief in chat. Do not recap, do not restate.** The user read
+  the request and can read the diff; repeating either back is noise. Report what
+  changed, what it cost, and what is still open — nothing else.
+
+- Where a structure, a flow or a process is easier seen than described, draw it
+  as a small ASCII diagram in a plain ``` block rather than spending a paragraph
+  on it.
+
 - Shell commands in docs must run unchanged in bash, PowerShell, Nushell and
   cmd: no `\` continuations, no pipes into `grep`/`sed`/`awk`, no `$(...)`, no
   `&&`/`||`, no globs. Double quotes where quoting is unavoidable. Fence them as
