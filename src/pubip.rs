@@ -50,7 +50,10 @@ static CLIENT: LazyLock<Client> = LazyLock::new(|| {
 pub struct Resolver {
     providers: Vec<HttpProvider>,
     tfa: TrustFactorAuthority,
-    confirmations: usize,
+
+    /// Set only by the deprecated `--confirmations`. Left alone, every round
+    /// works out its own threshold from the providers that answered it.
+    confirmations: Option<usize>,
 
     gaps: HashMap<HttpProvider, Duration>,
     honour: ratelimit::Honour,
@@ -75,16 +78,16 @@ impl Resolver {
             .map(|provider| tfa.trust_factor(*provider))
             .sum();
 
-        let confirmations = tfa.calc_confirmation_number(&providers);
+        let everyone = tfa.calc_confirmation_number(&providers);
         ensure!(
-            confirmations > 0,
+            everyone > 0,
             "a trust share of {share} over a total trust of {total} confirms an address nobody reported",
         );
 
         Ok(Self {
             providers,
             tfa,
-            confirmations,
+            confirmations: None,
             gaps: HashMap::new(),
             honour: ratelimit::Honour::Limits,
             asked: Mutex::new(HashMap::new()),
@@ -126,11 +129,17 @@ impl Resolver {
             );
         }
 
+        let enrolled = self.total_trust();
+
         info!(
             providers = self.providers.len(),
-            trust_total = self.total_trust(),
+            trust_total = enrolled,
             trust_share = %self.tfa.trust_share(),
-            confirmations = self.confirmations,
+            confirmations = self
+                .confirmations
+                .unwrap_or_else(|| self.tfa.calc_confirmation_number(&self.providers)),
+            confirmations_pinned = self.confirmations.is_some(),
+            trust_floor = consensus::floor(enrolled),
             pinned,
             "consensus is set",
         );
@@ -160,19 +169,20 @@ impl Resolver {
         self
     }
 
-    /// Overwrites the confirmation number that would otherwise be derived from
-    /// the enabled providers' trust factors.
+    /// Pins the threshold to one number for every round, whoever answered.
+    /// Only the deprecated `--confirmations` does this.
     pub fn set_confirmations(&mut self, confirmations: usize) -> &mut Self {
-        self.confirmations = confirmations;
+        self.confirmations = Some(confirmations);
         self
     }
 
     /// Polls every provider in parallel, then hands what came back to
     /// [`consensus::decide`].
     #[instrument(name = "pubip.resolve", skip_all, fields(
-        fckloud.consensus.threshold = self.confirmations,
+        fckloud.consensus.threshold = Empty,
         fckloud.consensus.confirmed = Empty,
         fckloud.consensus.unconfirmed = Empty,
+        fckloud.consensus.well_answered = Empty,
     ))]
     pub async fn run(&self) -> Report {
         let now = Instant::now();
@@ -215,14 +225,36 @@ impl Resolver {
             }
         }
 
-        let report = consensus::decide(&reported, &self.tfa, self.confirmations);
+        let enrolled = self.total_trust();
+        let answered: Vec<HttpProvider> = reported.iter().map(|(provider, _)| *provider).collect();
+        let answered_trust: usize = answered
+            .iter()
+            .map(|provider| self.tfa.trust_factor(*provider))
+            .sum();
+
+        let confirmations = self
+            .confirmations
+            .unwrap_or_else(|| consensus::confirmations_for(&answered, &self.tfa, enrolled));
+
+        let mut report = consensus::decide(&reported, &self.tfa, confirmations);
+        report.well_answered = consensus::well_answered(answered_trust, enrolled, &self.tfa);
+
+        if !report.well_answered {
+            debug!(
+                answered_trust,
+                enrolled, "round is degraded, its silence says nothing about the node",
+            );
+        }
+
         self.complain_about(&failed, &split.holding, &report);
 
         // Counts, not addresses: what an address is belongs in the log line
         // below, where it is read once, not in a label kept forever.
         Span::current()
+            .record("fckloud.consensus.threshold", report.confirmations)
             .record("fckloud.consensus.confirmed", report.confirmed.len())
-            .record("fckloud.consensus.unconfirmed", report.unconfirmed.len());
+            .record("fckloud.consensus.unconfirmed", report.unconfirmed.len())
+            .record("fckloud.consensus.well_answered", report.well_answered);
 
         metrics::record_consensus(report.confirmed.len(), report.unconfirmed.len());
 
