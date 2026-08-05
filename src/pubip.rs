@@ -114,14 +114,16 @@ impl Resolver {
     /// States the pool this run will actually ask and what it takes to confirm
     /// an address with it.
     ///
-    /// Worth a line at `info`: which providers are in play, and how much of
-    /// their trust an address needs, is the first thing anyone asks when a
-    /// round does not confirm what they expected.
+    /// One line at `info` for the pool as a whole, because how much trust an
+    /// address needs is the first thing anyone asks when a round did not
+    /// confirm what they expected. The providers themselves go one per line,
+    /// which is a screenful before anything has happened yet, so they wait for
+    /// `debug` and for somebody actually looking for them.
     pub fn announce(&self, pinned: bool) {
         for provider in &self.providers {
             let gap = ratelimit::gap_of(*provider, &self.gaps);
 
-            info!(
+            debug!(
                 %provider,
                 trust_factor = self.tfa.trust_factor(*provider),
                 rate_limit = gap.map(|gap| DisplayedDuration::from(gap).to_string()),
