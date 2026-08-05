@@ -104,11 +104,11 @@ Publishes no AAAA, so it cannot be reached from an IPv6-only node and splits
 the round on a dual-stacked one.
 
 Worth turning on against a local instance, where neither the failure rate below
-nor the missing AAAA applies. `--enable` replaces the default set rather than
+nor the missing AAAA applies. `--providers` replaces the default set rather than
 adding to it, so name everything wanted:
 
 ```
-fckloud run --node NAME --enable HttpBin,Ipify,SeeIp
+fckloud run --node NAME --providers HttpBin,Ipify,SeeIp
 ```
 
 `Seen`

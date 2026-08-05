@@ -12,7 +12,7 @@
 
 Providers with :key: mark has their trust factor 2 and more (medium and higher).
 Providers with :zzz: mark are disabled by default,
-and take part only when named by `--enable`.
+and take part only when named by `--providers`.
 
 `PROVIDERS.md` holds the rest: what each one limits,
 what it has been observed to do, and why it carries the trust factor it does.
@@ -98,6 +98,12 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 </sub>
 
 # Changelog
+
+### v1.7.0
+- Added `--providers`, which names the providers to ask and replaces both `--enable` and `--disable`
+- `--enable` and `--disable` are deprecated and hidden from `--help`; they still work, warn when used, and refuse to run beside `--providers`
+- Provider names are matched whatever their case, on the flags and in the environment alike
+- The resolved pool, every provider's trust factor and rate limit, and the confirmation threshold are logged at startup
 
 ### v1.6.0
 - Every provider carries the rate limit it publishes, and a round skips one whose gap has not elapsed rather than going over it
