@@ -10,6 +10,7 @@ use {
     humantime::parse_duration,
     std::{str::FromStr, time::Duration as StdDuration},
     strum::{VariantArray, VariantNames},
+    tracing::warn,
 };
 
 // Creds: https://github.com/clap-rs/clap/discussions/4264
@@ -62,14 +63,28 @@ pub struct OfProviders {
         value_delimiter = ',',
         ignore_case = true,
         value_parser = clap_enum_variants!(HttpProvider),
+        env(concatcp!(ENV_PREFIX, "PROVIDERS")),
+        hide_env=true,
+    )]
+    pub providers: Vec<HttpProvider>,
+
+    /// Deprecated, use `--providers` instead
+    #[arg(
+        long,
+        hide = true,
+        value_name("PROVIDER"),
+        value_delimiter = ',',
+        ignore_case = true,
+        value_parser = clap_enum_variants!(HttpProvider),
         env(concatcp!(ENV_PREFIX, "ENABLE")),
         hide_env=true,
     )]
     pub enable: Vec<HttpProvider>,
 
-    /// List of providers that should be disabled
+    /// Deprecated, use `--providers` instead
     #[arg(
         long,
+        hide = true,
         value_name("PROVIDER"),
         value_delimiter = ',',
         ignore_case = true,
@@ -126,22 +141,36 @@ pub struct OfProviders {
 impl OfProviders {
     /// Works out which providers this run will ask.
     ///
-    /// `--enable` replaces the default set rather than adding to it, so that
-    /// naming the two providers you want does not also mean naming the five
-    /// you do not. `--disable` then subtracts from whichever set that left.
+    /// `--providers` names them outright, replacing the default set rather than
+    /// adding to it, so that naming the two you want does not also mean naming
+    /// the five you do not.
     ///
     /// ```text
-    ///   no --enable  ->  base = providers enabled by default
-    ///   --enable A B ->  base = exactly A and B
-    ///                    asked = base minus --disable, each one once
+    ///   nothing given    ->  the providers enabled by default
+    ///   --providers A B  ->  exactly A and B
+    ///   --enable A B     ->  exactly A and B, deprecated
+    ///   --disable A      ->  the default set without A, deprecated
     /// ```
     pub fn setup(&mut self) -> Result<()> {
-        let by_default = self.enable.is_empty();
+        let deprecated = !self.enable.is_empty() || !self.disable.is_empty();
 
-        let base: &[HttpProvider] = if by_default {
-            <HttpProvider as VariantArray>::VARIANTS
-        } else {
+        ensure!(
+            !deprecated || self.providers.is_empty(),
+            "--providers cannot be combined with --enable or --disable, which it replaces"
+        );
+
+        if deprecated {
+            warn!("--enable and --disable are deprecated, --providers replaces both");
+        }
+
+        let by_default = self.providers.is_empty() && self.enable.is_empty();
+
+        let base: &[HttpProvider] = if !self.providers.is_empty() {
+            &self.providers
+        } else if !self.enable.is_empty() {
             &self.enable
+        } else {
+            <HttpProvider as VariantArray>::VARIANTS
         };
 
         let mut enabled = Vec::with_capacity(base.len());
@@ -205,19 +234,29 @@ impl OfProviders {
 mod tests {
     use super::*;
 
+    fn resolve(of: OfProviders) -> Result<Vec<HttpProvider>> {
+        let mut of = of;
+        of.setup()?;
+        Ok(of.enabled)
+    }
+
     fn asked(enable: &[HttpProvider], disable: &[HttpProvider]) -> Result<Vec<HttpProvider>> {
-        let mut providers = OfProviders {
+        resolve(OfProviders {
             enable: enable.to_vec(),
             disable: disable.to_vec(),
             ..OfProviders::default()
-        };
-
-        providers.setup()?;
-        Ok(providers.enabled)
+        })
     }
 
     fn must_ask(enable: &[HttpProvider], disable: &[HttpProvider]) -> Vec<HttpProvider> {
         asked(enable, disable).expect("this combination must leave a provider standing")
+    }
+
+    fn named(providers: &[HttpProvider]) -> Result<Vec<HttpProvider>> {
+        resolve(OfProviders {
+            providers: providers.to_vec(),
+            ..OfProviders::default()
+        })
     }
 
     #[test]
@@ -265,6 +304,40 @@ mod tests {
     fn a_provider_named_twice_is_asked_once() {
         let enabled = must_ask(&[HttpProvider::MyIpWtf, HttpProvider::MyIpWtf], &[]);
         assert_eq!(enabled, vec![HttpProvider::MyIpWtf]);
+    }
+
+    #[test]
+    fn providers_replaces_the_default_set() {
+        let enabled = named(&[HttpProvider::HttpBin, HttpProvider::SeeIp])
+            .expect("two named providers must resolve");
+
+        assert_eq!(enabled, vec![HttpProvider::HttpBin, HttpProvider::SeeIp]);
+    }
+
+    #[test]
+    fn providers_named_twice_is_asked_once() {
+        let enabled = named(&[HttpProvider::SeeIp, HttpProvider::SeeIp])
+            .expect("a repeated provider must resolve");
+
+        assert_eq!(enabled, vec![HttpProvider::SeeIp]);
+    }
+
+    #[test]
+    fn providers_refuses_to_share_the_run_with_the_flags_it_replaces() {
+        let with_enable = OfProviders {
+            providers: vec![HttpProvider::SeeIp],
+            enable: vec![HttpProvider::Ipify],
+            ..OfProviders::default()
+        };
+
+        let with_disable = OfProviders {
+            providers: vec![HttpProvider::SeeIp],
+            disable: vec![HttpProvider::Ipify],
+            ..OfProviders::default()
+        };
+
+        assert!(resolve(with_enable).is_err());
+        assert!(resolve(with_disable).is_err());
     }
 
     #[test]
