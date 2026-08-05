@@ -5,7 +5,7 @@ use {
     },
     opentelemetry::{
         KeyValue,
-        metrics::{AsyncInstrument, Gauge, Histogram, ObservableGauge},
+        metrics::{AsyncInstrument, Counter, Gauge, Histogram, ObservableGauge},
     },
     std::{
         array,
@@ -58,6 +58,17 @@ static FAILURE_COUNT: LazyLock<ObservableGauge<u64>> = LazyLock::new(|| {
             "Failures per provider so far in each window, which restarts once it elapses",
         ))
         .with_callback(|observer| failures().observe(observer))
+        .build()
+});
+
+// Not an error and deliberately not an attribute on the histogram above: a
+// round that skipped a provider made no request, so it has no duration and
+// belongs in no latency bucket.
+static RATE_LIMITED: LazyLock<Counter<u64>> = LazyLock::new(|| {
+    meter()
+        .u64_counter("fckloud.provider.rate_limited")
+        .with_unit("{round}")
+        .with_description("Rounds that skipped a provider still serving out its gap")
         .build()
 });
 
@@ -165,6 +176,12 @@ pub fn record_request(provider: HttpProvider, elapsed: Duration, failure: Option
     }
 
     REQUEST_DURATION.record(elapsed.as_secs_f64() * 1000.0, &attributes);
+}
+
+/// Records that a round went without a provider because its gap had not
+/// elapsed.
+pub fn record_rate_limited(provider: HttpProvider) {
+    RATE_LIMITED.add(1, &[KeyValue::new("fckloud.provider", provider.host())]);
 }
 
 /// Records how the round divided: how many addresses cleared the threshold and

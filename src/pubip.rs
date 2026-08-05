@@ -106,6 +106,7 @@ impl Resolver {
         };
 
         for (provider, left) in &split.holding {
+            metrics::record_rate_limited(*provider);
             debug!(
                 %provider,
                 left = DisplayedDuration::from(*left).to_string(),
