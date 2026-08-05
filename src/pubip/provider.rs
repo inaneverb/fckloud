@@ -103,6 +103,73 @@ impl HttpProvider {
         }
     }
 
+    /// Where the provider states what it allows. Not a terms of service in most
+    /// cases - none of them publishes one - but the page the claim lives on.
+    pub const fn terms(self) -> &'static str {
+        match self {
+            Self::HttpBin => "https://github.com/postmanlabs/httpbin",
+            Self::MyIpWtf => "https://myip.wtf/automation",
+            Self::SeeIp => "https://seeip.org",
+            Self::Ipify => "https://www.ipify.org",
+            Self::MyIpCom => "https://www.myip.com/api-docs/",
+            Self::BigDataCloud => "https://www.bigdatacloud.com/terms-and-conditions",
+            Self::MyIpLa => "https://www.myip.la",
+        }
+    }
+
+    /// Whether the host publishes an AAAA record, and so whether it can answer
+    /// a node that has only IPv6.
+    pub const fn has_ipv6(self) -> bool {
+        match self {
+            Self::HttpBin => false,
+            Self::MyIpWtf
+            | Self::SeeIp
+            | Self::Ipify
+            | Self::MyIpCom
+            | Self::BigDataCloud
+            | Self::MyIpLa => true,
+        }
+    }
+
+    /// What PROVIDERS.md says about this one, in the space of a line or two.
+    pub const fn summary(self) -> &'static str {
+        match self {
+            Self::HttpBin => concat!(
+                "A request inspection playground that happens to echo the caller's address. ",
+                "Dropped a fifth of this controller's requests over a measured window, and ",
+                "publishes no AAAA, which is why it is off by default.",
+            ),
+            Self::MyIpWtf => concat!(
+                "Asks for one request per minute per machine, which is exactly the default ",
+                "tick and leaves no headroom. The limit is asked for, not enforced.",
+            ),
+            Self::SeeIp => concat!(
+                "Funded by UNVIO, LLC, open source, no visitor logging, documented as usable ",
+                "without any real limit. Less public history than ipify, and that is the ",
+                "whole gap between the two.",
+            ),
+            Self::Ipify => concat!(
+                "Apache-2.0 and open source, no stated limit of any kind, no visitor logging. ",
+                "The only provider whose operator, code and history can all be inspected. ",
+                "`api64` answers over whichever family the connection arrived on.",
+            ),
+            Self::MyIpCom => concat!(
+                "No request limit beyond server capacity, commercial use allowed, credit ",
+                "appreciated. Answers text/html whatever the body is, so nothing may key off ",
+                "the content type.",
+            ),
+            Self::BigDataCloud => concat!(
+                "No API key, no published limit, a company's infrastructure and the fastest ",
+                "answer of the seven. Ranked low only because its documentation names the ",
+                "wrong field, and has long enough for nobody to have noticed.",
+            ),
+            Self::MyIpLa => concat!(
+                "Documented as unlimited, no visitor logging. No named operator, no source, ",
+                "no terms page and no contact, so it carries the smallest weight there is.",
+            ),
+        }
+    }
+
     pub fn response_decode(self, body: &[u8]) -> Result<IpAddr, FetchError> {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
@@ -237,6 +304,17 @@ mod tests {
             assert!(
                 uri.starts_with(&expected),
                 "{uri} does not start {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_provider_says_what_it_is_and_where_that_came_from() {
+        for provider in <HttpProvider as VariantArray>::VARIANTS {
+            assert!(!provider.summary().is_empty(), "{provider} has no summary");
+            assert!(
+                provider.terms().starts_with("https://"),
+                "{provider} points its terms nowhere",
             );
         }
     }
