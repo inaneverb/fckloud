@@ -130,17 +130,6 @@ impl Executable for Args {
         assert!(*self.interval >= Self::MIN_INTERVAL);
         assert!(!self.node.is_empty());
 
-        if *self.interval < Self::DEF_INTERVAL {
-            warn!(
-                given_interval = self.interval.to_string(),
-                safe_min_interval = DisplayedDuration::from(Self::DEF_INTERVAL).to_string(),
-                concat!(
-                    "specified interval could be too short, ",
-                    "many providers discourage you from using <= 1m one per IP per machine",
-                ),
-            );
-        }
-
         if let Some(confirmations) = self.confirmations {
             warn!(
                 confirmations,
