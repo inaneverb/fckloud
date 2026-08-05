@@ -101,6 +101,19 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 
 # Changelog
 
+### v1.9.0
+:warning: The operator now removes an ExternalIP consensus stopped vouching for, 
+which it never did without `--strict`. 
+It waits out `--removal-grace`, five minutes by default, 
+and two rounds that were well answered; 
+pass `--removal-grace never` to keep the old behaviour.
+
+- The confirmation threshold is taken from the trust that answered the round, not from the trust that was enabled, so a provider an egress policy blocks no longer raises a bar it cannot help clear
+- An address must still gather at least 2 trust however few providers answered, or the whole enabled trust when that is less
+- Added `--removal-grace`, taking a duration or `never`, and deprecating `--strict`, which still removes on the first round
+- A round is graded by how much of the enabled trust answered it; a degraded round neither condemns an address nor clears one
+- While an address is waiting out its grace the operator polls every 30 seconds instead of waiting for `--interval`, so a grace shorter than the interval still gathers its evidence
+
 ### v1.8.0
 - `--providers` now takes sets as well as names: a version to pin (`v1.5`), `all`, `default`, or a trust floor (`trust1`, `trust2`, `trust3`, spelled `low`, `med`, `hig` too)
 - A version set reproduces exactly what that release asked for and never changes again, so pinning one keeps the pool and the egress it needs fixed across upgrades
