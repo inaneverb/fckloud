@@ -10,7 +10,33 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # A tag can be pushed long after a newer one exists - backfilling a release
+  # that was never tagged, for one. Publishing it would move `latest` backwards
+  # onto older code for every deployment that follows that tag.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      newest: ${{ steps.check.outputs.newest }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Refuse to publish anything but the newest tag
+      id: check
+      run: |
+        newest="$(git tag -l 'v*.*.*' | sort -V | tail -1)"
+        if [ "$GITHUB_REF_NAME" = "$newest" ]; then
+          echo "newest=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "newest=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::$GITHUB_REF_NAME is not the newest tag ($newest), nothing is published"
+        fi
+
   build:
+    needs: guard
+    if: needs.guard.outputs.newest == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
