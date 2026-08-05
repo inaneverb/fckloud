@@ -13,6 +13,7 @@ pub enum HttpProvider {
     MyIpWtf, // https://myip.wtf/automation
     SeeIp,   // https://seeip.org
     Ipify,   // https://www.ipify.org
+    MyIpCom, // https://www.myip.com/api-docs
 }
 
 impl fmt::Display for HttpProvider {
@@ -30,6 +31,7 @@ impl HttpProvider {
             Self::MyIpWtf => "myip.wtf",
             Self::SeeIp => "api.seeip.org",
             Self::Ipify => "api64.ipify.org",
+            Self::MyIpCom => "api.myip.com",
         }
     }
 
@@ -43,19 +45,22 @@ impl HttpProvider {
             // to IPv4 while dual-stacked providers report the node's IPv6, and
             // a round split between two families confirms neither address.
             Self::Ipify => "https://api64.ipify.org/?format=json",
+            Self::MyIpCom => "https://api.myip.com/",
         }
     }
 
     pub const fn request_method(self) -> Method {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify => Method::GET,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify | Self::MyIpCom => {
+                Method::GET
+            }
         }
     }
 
     /// Whether the provider takes part in consensus without being asked for.
     pub const fn enabled_by_default(self) -> bool {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify => true,
+            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify | Self::MyIpCom => true,
         }
     }
 
@@ -63,7 +68,7 @@ impl HttpProvider {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
-            Self::SeeIp | Self::Ipify => decode::<IpFieldResponse>(body),
+            Self::SeeIp | Self::Ipify | Self::MyIpCom => decode::<IpFieldResponse>(body),
         }
     }
 }
@@ -124,7 +129,7 @@ mod tests {
 
     // One captured body per provider, trimmed of everything but the fields
     // that matter, so that a provider changing its shape fails here first.
-    const SHAPES: [(HttpProvider, &str); 4] = [
+    const SHAPES: [(HttpProvider, &str); 5] = [
         (HttpProvider::HttpBin, r#"{"origin":"1.2.3.4"}"#),
         (
             HttpProvider::MyIpWtf,
@@ -132,6 +137,10 @@ mod tests {
         ),
         (HttpProvider::SeeIp, r#"{"ip":"1.2.3.4"}"#),
         (HttpProvider::Ipify, r#"{"ip":"1.2.3.4"}"#),
+        (
+            HttpProvider::MyIpCom,
+            r#"{"ip":"1.2.3.4","country":"Serbia","cc":"RS"}"#,
+        ),
     ];
 
     #[test]
