@@ -10,10 +10,11 @@ use {
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug, EnumString, VariantArray, VariantNames)]
 pub enum HttpProvider {
     HttpBin,
-    MyIpWtf, // https://myip.wtf/automation
-    SeeIp,   // https://seeip.org
-    Ipify,   // https://www.ipify.org
-    MyIpCom, // https://www.myip.com/api-docs
+    MyIpWtf,      // https://myip.wtf/automation
+    SeeIp,        // https://seeip.org
+    Ipify,        // https://www.ipify.org
+    MyIpCom,      // https://www.myip.com/api-docs
+    BigDataCloud, // https://www.bigdatacloud.com/free-api/public-ip-address-api
 }
 
 impl fmt::Display for HttpProvider {
@@ -32,6 +33,7 @@ impl HttpProvider {
             Self::SeeIp => "api.seeip.org",
             Self::Ipify => "api64.ipify.org",
             Self::MyIpCom => "api.myip.com",
+            Self::BigDataCloud => "api.bigdatacloud.net",
         }
     }
 
@@ -46,21 +48,30 @@ impl HttpProvider {
             // a round split between two families confirms neither address.
             Self::Ipify => "https://api64.ipify.org/?format=json",
             Self::MyIpCom => "https://api.myip.com/",
+            Self::BigDataCloud => "https://api.bigdatacloud.net/data/client-ip",
         }
     }
 
     pub const fn request_method(self) -> Method {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify | Self::MyIpCom => {
-                Method::GET
-            }
+            Self::HttpBin
+            | Self::MyIpWtf
+            | Self::SeeIp
+            | Self::Ipify
+            | Self::MyIpCom
+            | Self::BigDataCloud => Method::GET,
         }
     }
 
     /// Whether the provider takes part in consensus without being asked for.
     pub const fn enabled_by_default(self) -> bool {
         match self {
-            Self::HttpBin | Self::MyIpWtf | Self::SeeIp | Self::Ipify | Self::MyIpCom => true,
+            Self::HttpBin
+            | Self::MyIpWtf
+            | Self::SeeIp
+            | Self::Ipify
+            | Self::MyIpCom
+            | Self::BigDataCloud => true,
         }
     }
 
@@ -68,6 +79,7 @@ impl HttpProvider {
         match self {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
+            Self::BigDataCloud => decode::<BigDataCloudResponse>(body),
             Self::SeeIp | Self::Ipify | Self::MyIpCom => decode::<IpFieldResponse>(body),
         }
     }
@@ -96,6 +108,14 @@ struct IpFieldResponse {
     ip: IpAddr,
 }
 
+// The published example names this field `ip`; what the endpoint sends is
+// `ipString`. Trusting the documentation here decodes nothing.
+#[derive(Deserialize)]
+struct BigDataCloudResponse {
+    #[serde(rename = "ipString")]
+    ip_addr: IpAddr,
+}
+
 impl Response for HttpBinResponse {
     fn into_ip_addr(self) -> IpAddr {
         self.origin
@@ -114,6 +134,12 @@ impl Response for IpFieldResponse {
     }
 }
 
+impl Response for BigDataCloudResponse {
+    fn into_ip_addr(self) -> IpAddr {
+        self.ip_addr
+    }
+}
+
 fn decode<T: Response>(body: &[u8]) -> Result<IpAddr, FetchError> {
     let decoded: T = unjson(body).map_err(|source| FetchError::Decode {
         body: String::from_utf8_lossy(body).into_owned(),
@@ -129,7 +155,7 @@ mod tests {
 
     // One captured body per provider, trimmed of everything but the fields
     // that matter, so that a provider changing its shape fails here first.
-    const SHAPES: [(HttpProvider, &str); 5] = [
+    const SHAPES: [(HttpProvider, &str); 6] = [
         (HttpProvider::HttpBin, r#"{"origin":"1.2.3.4"}"#),
         (
             HttpProvider::MyIpWtf,
@@ -140,6 +166,10 @@ mod tests {
         (
             HttpProvider::MyIpCom,
             r#"{"ip":"1.2.3.4","country":"Serbia","cc":"RS"}"#,
+        ),
+        (
+            HttpProvider::BigDataCloud,
+            r#"{"ipString":"1.2.3.4","ipType":"IPv4"}"#,
         ),
     ];
 
@@ -175,6 +205,13 @@ mod tests {
                 "{uri} does not start {expected}"
             );
         }
+    }
+
+    #[test]
+    fn the_bigdatacloud_documented_field_name_is_not_the_one_it_sends() {
+        HttpProvider::BigDataCloud
+            .response_decode(br#"{"ip":"1.2.3.4"}"#)
+            .expect_err("`ip` is what the docs show, not what the endpoint sends");
     }
 
     #[test]

@@ -59,7 +59,7 @@ impl TrustFactorAuthority {
     // Returns default trust factor for the given [HttpProvider].
     fn default_trust_factor(provider: HttpProvider) -> usize {
         match provider {
-            HttpProvider::HttpBin => Self::LOW,
+            HttpProvider::HttpBin | HttpProvider::BigDataCloud => Self::LOW,
             HttpProvider::MyIpWtf | HttpProvider::SeeIp | HttpProvider::MyIpCom => Self::MED,
             HttpProvider::Ipify => Self::HIG,
         }
@@ -77,8 +77,8 @@ mod tests {
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::HttpBin]), 1);
         assert_eq!(tfa.calc_confirmation_number(&[HttpProvider::MyIpWtf]), 2);
 
-        // Every provider there is, total 10: floor(20/3) = 6.
-        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 6);
+        // Every provider there is, total 11: floor(22/3) = 7.
+        assert_eq!(tfa.calc_confirmation_number(HttpProvider::VARIANTS), 7);
     }
 
     #[test]
