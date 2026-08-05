@@ -34,7 +34,7 @@ const CHANGEPOINTS: [(Version, &[HttpProvider]); 3] = [
 
 /// Every version ever released, newest last. The last entry is this build, and
 /// a test says so: bumping the version means adding a line here.
-const RELEASES: [Version; 8] = [
+const RELEASES: [Version; 9] = [
     Version(1, 0, 0),
     Version(1, 1, 0),
     Version(1, 2, 0),
@@ -43,6 +43,7 @@ const RELEASES: [Version; 8] = [
     Version(1, 5, 0),
     Version(1, 6, 0),
     Version(1, 7, 0),
+    Version(1, 8, 0),
 ];
 
 /// A name `--providers` accepts that stands for more than one provider.
@@ -303,7 +304,7 @@ mod tests {
     // to everyone who pinned that version, so this test failing means either a
     // changepoint was edited - which is the promise broken - or a new release
     // changed the set and owes itself a line.
-    const GOLDEN: [(&str, &[&str]); 8] = [
+    const GOLDEN: [(&str, &[&str]); 9] = [
         ("v1.0.0", &["httpbin.org"]),
         ("v1.1.0", &["httpbin.org"]),
         ("v1.2.0", &["httpbin.org", "myip.wtf"]),
@@ -312,6 +313,7 @@ mod tests {
         ("v1.5.0", &SIX),
         ("v1.6.0", &SIX),
         ("v1.7.0", &SIX),
+        ("v1.8.0", &SIX),
     ];
 
     const SIX: [&str; 6] = [
