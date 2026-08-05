@@ -114,7 +114,7 @@ impl Resolver {
     /// Worth a line at `info`: which providers are in play, and how much of
     /// their trust an address needs, is the first thing anyone asks when a
     /// round does not confirm what they expected.
-    pub fn announce(&self) {
+    pub fn announce(&self, pinned: bool) {
         for provider in &self.providers {
             let gap = ratelimit::gap_of(*provider, &self.gaps);
 
@@ -129,9 +129,18 @@ impl Resolver {
         info!(
             providers = self.providers.len(),
             trust_total = self.total_trust(),
+            trust_share = %self.tfa.trust_share(),
             confirmations = self.confirmations,
+            pinned,
             "consensus is set",
         );
+
+        if !pinned {
+            debug!(concat!(
+                "this selection is not pinned, so an upgrade may add a provider to it; ",
+                "name a version instead to keep the pool and its egress fixed",
+            ));
+        }
     }
 
     fn total_trust(&self) -> usize {

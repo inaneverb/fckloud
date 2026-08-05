@@ -184,6 +184,18 @@ impl OfProviders {
         Ok(())
     }
 
+    /// Whether an upgrade is guaranteed to leave this selection alone.
+    ///
+    /// Only a version pins. Every other name follows whatever the binary knows,
+    /// so `trust2` gains a provider the day a medium-trust one is added, and
+    /// with it the egress that provider needs.
+    pub fn pins(&self) -> bool {
+        self.providers.iter().any(|token| match token {
+            Token::Set(set) => set.pins(),
+            Token::Provider(_) => false,
+        })
+    }
+
     /// The trust factors this run works with, the operator's overrides applied.
     pub fn trust_authority(&self) -> TrustFactorAuthority {
         let mut tfa = TrustFactorAuthority::default();

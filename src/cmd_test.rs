@@ -1,8 +1,5 @@
 use {
-    crate::{
-        Executable, args,
-        pubip::{Resolver, TrustFactorAuthority},
-    },
+    crate::{Executable, args, pubip::Resolver},
     anyhow::Result,
     clap::Args as ClapArgs,
     tracing::info,
@@ -25,12 +22,15 @@ impl Executable for Args {
     // The "main" function for the "test" command.
     // Perpares the Tokio runtime, executes HTTP requests to IP resolvers.
     async fn run(self) -> Result<()> {
-        let mut resolver = Resolver::new(self.providers.enabled, TrustFactorAuthority::default())?;
+        let pinned = self.providers.pins();
+        let tfa = self.providers.trust_authority();
+
+        let mut resolver = Resolver::new(self.providers.enabled.clone(), tfa)?;
         resolver
             .set_rate_limits(self.providers.rate_limit.iter().copied())
             .set_ignore_rate_limits(self.providers.ignore_rate_limits);
 
-        resolver.announce();
+        resolver.announce(pinned);
 
         resolver
             .run()

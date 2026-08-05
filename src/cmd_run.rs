@@ -189,7 +189,7 @@ impl Executable for Args {
             resolver.set_confirmations(confirmations);
         }
 
-        resolver.announce();
+        resolver.announce(self.providers.pins());
 
         loop {
             let now = Instant::now();
