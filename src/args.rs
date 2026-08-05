@@ -1,6 +1,6 @@
 use {
     crate::build_info::ENV_PREFIX,
-    crate::pubip::{HttpProvider, TrustFactorAuthority},
+    crate::pubip::{self, HttpProvider, Set, Token, TrustFactorAuthority},
     anyhow::{Error, Result, anyhow, bail, ensure},
     clap::{
         Args as ClapArgs,
@@ -12,6 +12,14 @@ use {
     strum::{VariantArray, VariantNames},
     tracing::warn,
 };
+
+/// Keeps a provider named twice from paying its trust factor twice into the
+/// same address' bucket.
+fn push_once(providers: &mut Vec<HttpProvider>, provider: HttpProvider) {
+    if !providers.contains(&provider) {
+        providers.push(provider);
+    }
+}
 
 // Creds: https://github.com/clap-rs/clap/discussions/4264
 macro_rules! clap_enum_variants {
@@ -56,17 +64,17 @@ pub struct Global {
 
 #[derive(Clone, Default, ClapArgs)]
 pub struct OfProviders {
-    /// List of providers to ask, replacing the default set entirely
+    /// Providers to ask: their names, a version to pin (v1.5), or a set
+    /// (all, default, trust1, trust2, trust3, also low, med, hig)
     #[arg(
         long,
-        value_name("PROVIDER"),
+        value_name("NAME"),
         value_delimiter = ',',
-        ignore_case = true,
-        value_parser = clap_enum_variants!(HttpProvider),
+        value_parser = Self::parse_provider_token,
         env(concatcp!(ENV_PREFIX, "PROVIDERS")),
         hide_env=true,
     )]
-    pub providers: Vec<HttpProvider>,
+    pub providers: Vec<Token>,
 
     /// Deprecated, use `--providers` instead
     #[arg(
@@ -146,10 +154,11 @@ impl OfProviders {
     /// the five you do not.
     ///
     /// ```text
-    ///   nothing given    ->  the providers enabled by default
-    ///   --providers A B  ->  exactly A and B
-    ///   --enable A B     ->  exactly A and B, deprecated
-    ///   --disable A      ->  the default set without A, deprecated
+    ///   nothing given      ->  the providers enabled by default
+    ///   --providers A,med  ->  A and everything at medium trust or above
+    ///   --providers v1.5   ->  exactly what v1.5 asked, and nothing beside it
+    ///   --enable A B       ->  exactly A and B, deprecated
+    ///   --disable A        ->  the default set without A, deprecated
     /// ```
     pub fn setup(&mut self) -> Result<()> {
         let deprecated = !self.enable.is_empty() || !self.disable.is_empty();
@@ -163,31 +172,97 @@ impl OfProviders {
             warn!("--enable and --disable are deprecated, --providers replaces both");
         }
 
-        let by_default = self.providers.is_empty() && self.enable.is_empty();
-
-        let base: &[HttpProvider] = if !self.providers.is_empty() {
-            &self.providers
-        } else if !self.enable.is_empty() {
-            &self.enable
+        let enabled = if self.providers.is_empty() {
+            self.resolve_deprecated()
         } else {
+            self.resolve_tokens()?
+        };
+
+        ensure!(!enabled.is_empty(), "at least one provider must be enabled");
+        self.enabled = enabled;
+
+        Ok(())
+    }
+
+    /// The trust factors this run works with, the operator's overrides applied.
+    pub fn trust_authority(&self) -> TrustFactorAuthority {
+        let mut tfa = TrustFactorAuthority::default();
+        for (provider, trust_factor) in &self.trust_factor {
+            tfa.set_trust_factor(*provider, *trust_factor);
+        }
+
+        tfa
+    }
+
+    /// Unions what every name stands for, in the order they were given.
+    ///
+    /// A version is exclusive: pinning means reproducing exactly what that
+    /// release asked, and a pin that can be amended is not one.
+    fn resolve_tokens(&self) -> Result<Vec<HttpProvider>> {
+        let tfa = self.trust_authority();
+        let pinned = self.providers.iter().find(|token| match token {
+            Token::Set(set) => set.pins(),
+            Token::Provider(_) => false,
+        });
+
+        if let Some(pin) = pinned {
+            ensure!(
+                self.providers.len() == 1,
+                "a pinned provider set stands alone and cannot be combined with anything else",
+            );
+
+            if let Token::Set(Set::Version(version)) = pin
+                && !pubip::released(*version)
+            {
+                warn!(%version, "no such release; the newest set at or below it is used instead");
+            }
+        }
+
+        let mut enabled = Vec::new();
+        for token in &self.providers {
+            match token {
+                Token::Provider(provider) => push_once(&mut enabled, *provider),
+                Token::Set(set) => {
+                    for provider in set.members(&tfa) {
+                        push_once(&mut enabled, provider);
+                    }
+
+                    for skipped in set.skipped(&tfa) {
+                        warn!(
+                            provider = %skipped,
+                            "provider is off by default and no set enables it, name it outright",
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(enabled)
+    }
+
+    fn resolve_deprecated(&self) -> Vec<HttpProvider> {
+        let by_default = self.enable.is_empty();
+
+        let base: &[HttpProvider] = if by_default {
             <HttpProvider as VariantArray>::VARIANTS
+        } else {
+            &self.enable
         };
 
         let mut enabled = Vec::with_capacity(base.len());
         for provider in base {
             let wanted = !by_default || provider.enabled_by_default();
 
-            // The last condition keeps a provider named twice from paying its
-            // trust factor twice into the same address' bucket.
-            if wanted && !self.disable.contains(provider) && !enabled.contains(provider) {
-                enabled.push(*provider);
+            if wanted && !self.disable.contains(provider) {
+                push_once(&mut enabled, *provider);
             }
         }
 
-        ensure!(!enabled.is_empty(), "at least one provider must be enabled");
-        self.enabled = enabled;
+        enabled
+    }
 
-        Ok(())
+    pub fn parse_provider_token(s: &str) -> Result<Token> {
+        pubip::parse_provider_token(s).map_err(|err| anyhow!("{err}"))
     }
 
     // https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
@@ -252,11 +327,25 @@ mod tests {
         asked(enable, disable).expect("this combination must leave a provider standing")
     }
 
-    fn named(providers: &[HttpProvider]) -> Result<Vec<HttpProvider>> {
+    fn tokens(names: &[&str]) -> Vec<Token> {
+        names
+            .iter()
+            .map(|name| {
+                OfProviders::parse_provider_token(name)
+                    .unwrap_or_else(|err| panic!("`{name}` must parse: {err}"))
+            })
+            .collect()
+    }
+
+    fn named(names: &[&str]) -> Result<Vec<HttpProvider>> {
         resolve(OfProviders {
-            providers: providers.to_vec(),
+            providers: tokens(names),
             ..OfProviders::default()
         })
+    }
+
+    fn must_name(names: &[&str]) -> Vec<HttpProvider> {
+        named(names).unwrap_or_else(|err| panic!("{names:?} must resolve: {err}"))
     }
 
     #[test]
@@ -308,30 +397,53 @@ mod tests {
 
     #[test]
     fn providers_replaces_the_default_set() {
-        let enabled = named(&[HttpProvider::HttpBin, HttpProvider::SeeIp])
-            .expect("two named providers must resolve");
-
-        assert_eq!(enabled, vec![HttpProvider::HttpBin, HttpProvider::SeeIp]);
+        assert_eq!(
+            must_name(&["HttpBin", "SeeIp"]),
+            vec![HttpProvider::HttpBin, HttpProvider::SeeIp],
+        );
     }
 
     #[test]
     fn providers_named_twice_is_asked_once() {
-        let enabled = named(&[HttpProvider::SeeIp, HttpProvider::SeeIp])
-            .expect("a repeated provider must resolve");
+        assert_eq!(must_name(&["SeeIp", "seeip"]), vec![HttpProvider::SeeIp]);
+    }
 
-        assert_eq!(enabled, vec![HttpProvider::SeeIp]);
+    #[test]
+    fn a_set_and_a_provider_beside_it_are_unioned() {
+        let enabled = must_name(&["hig", "HttpBin"]);
+        assert_eq!(enabled, vec![HttpProvider::Ipify, HttpProvider::HttpBin]);
+    }
+
+    #[test]
+    fn a_set_never_reaches_a_provider_that_is_off_by_default() {
+        assert!(!must_name(&["trust1"]).contains(&HttpProvider::HttpBin));
+        assert!(must_name(&["all"]).contains(&HttpProvider::HttpBin));
+    }
+
+    #[test]
+    fn a_pinned_version_stands_alone() {
+        assert_eq!(must_name(&["v1.2"]).len(), 2);
+
+        assert!(named(&["v1.2", "Ipify"]).is_err());
+        assert!(named(&["v1.2", "v1.5"]).is_err());
+        assert!(named(&["v1.2", "all"]).is_err());
+    }
+
+    #[test]
+    fn a_version_newer_than_this_build_is_refused_outright() {
+        assert!(OfProviders::parse_provider_token("v9.9").is_err());
     }
 
     #[test]
     fn providers_refuses_to_share_the_run_with_the_flags_it_replaces() {
         let with_enable = OfProviders {
-            providers: vec![HttpProvider::SeeIp],
+            providers: tokens(&["SeeIp"]),
             enable: vec![HttpProvider::Ipify],
             ..OfProviders::default()
         };
 
         let with_disable = OfProviders {
-            providers: vec![HttpProvider::SeeIp],
+            providers: tokens(&["SeeIp"]),
             disable: vec![HttpProvider::Ipify],
             ..OfProviders::default()
         };

@@ -3,7 +3,7 @@ use {
         Executable, args,
         build_info::ENV_PREFIX,
         node::{AddrStatus, Manager as NodeManager},
-        pubip::{Resolver, TrustFactorAuthority, TrustShare},
+        pubip::{Resolver, TrustShare},
         telemetry::meter,
     },
     anyhow::{Context as _, Error, Result, bail, ensure},
@@ -164,10 +164,7 @@ impl Executable for Args {
     async fn run(self) -> Result<()> {
         info!("welcome to fckloud");
 
-        let mut tfa = TrustFactorAuthority::default();
-        for (provider, trust_factor) in &self.providers.trust_factor {
-            tfa.set_trust_factor(*provider, *trust_factor);
-        }
+        let mut tfa = self.providers.trust_authority();
 
         if let Some(share) = self.trust_share {
             tfa.set_trust_share(share);

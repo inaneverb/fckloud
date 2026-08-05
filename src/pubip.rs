@@ -4,11 +4,16 @@ mod error;
 mod metrics;
 mod provider;
 mod ratelimit;
+mod set;
 mod share;
 mod trust;
 
 pub use self::{
-    consensus::Report, provider::HttpProvider, share::TrustShare, trust::TrustFactorAuthority,
+    consensus::Report,
+    provider::HttpProvider,
+    set::{Set, Token, parse_token as parse_provider_token, released},
+    share::TrustShare,
+    trust::TrustFactorAuthority,
 };
 
 use {
