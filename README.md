@@ -29,7 +29,9 @@ and when any provider reports the same IP address,
 that provider's trust factor is added to the reported IP's confirmation bucket, 
 which accumulates until it reaches the confirmation threshold.
 
-You can define the confirmation threshold, but by default it is:
+The share of the total trust an address must gather is `--trust-share`, 
+which takes `2/3`, `75%` or `0.75` and is kept as an exact ratio. 
+With the default share of two thirds, the threshold is:
 
 $$
   C = \begin{cases}
@@ -98,6 +100,15 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 </sub>
 
 # Changelog
+
+### v1.8.0
+- `--providers` now takes sets as well as names: a version to pin (`v1.5`), `all`, `default`, or a trust floor (`trust1`, `trust2`, `trust3`, spelled `low`, `med`, `hig` too)
+- A version set reproduces exactly what that release asked for and never changes again, so pinning one keeps the pool and the egress it needs fixed across upgrades
+- A version set stands alone; every other name unions with the rest
+- Only `all` and a provider named outright reach a provider that is off by default, and a set that skipped one says so
+- Added `--trust-share`, taking `2/3`, `75%` or `0.75`, and deprecating `--confirmations`, whose absolute number quietly changed meaning whenever the provider set did
+- The operator refuses to start when the share and the enabled providers between them ask for a threshold of nothing
+- The startup line says whether the selection survives an upgrade
 
 ### v1.7.0
 - Added `--providers`, which names the providers to ask and replaces both `--enable` and `--disable`

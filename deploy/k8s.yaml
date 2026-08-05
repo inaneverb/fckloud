@@ -93,6 +93,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        # Pinned on purpose: a version set never changes, so upgrading the image
+        # cannot add a provider and with it a host this node has to be allowed
+        # to reach. Move it deliberately, after reading what the newer set asks.
+        - name: FCKLOUD_PROVIDERS
+          value: "v1.8"
+
         - name: FCKLOUD_JSON # Enable logs in JSON?
           value: "false"
         - name: FCKLOUD_STRICT # Remove unmatched ExternalIPs?

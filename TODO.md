@@ -58,7 +58,7 @@
 - [x] Implement "Rate limiters" (see below)
 - [x] Implement "Weighting providers" (see below)
 - [ ] Implement "Dual-stack" (see below)
-- [ ] Implement "Named provider sets" (see below)
+- [x] Implement "Named provider sets" (see below)
 - [ ] Implement "Threshold over responders" (see below)
 - [ ] Implement "Removal grace" (see below)
 - [ ] Implement "Persisted pending removals" (see below)
