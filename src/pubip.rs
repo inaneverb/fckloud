@@ -4,12 +4,16 @@ mod error;
 mod metrics;
 mod provider;
 mod ratelimit;
+mod share;
 mod trust;
 
-pub use self::{consensus::Report, provider::HttpProvider, trust::TrustFactorAuthority};
+pub use self::{
+    consensus::Report, provider::HttpProvider, share::TrustShare, trust::TrustFactorAuthority,
+};
 
 use {
     self::error::FetchError,
+    anyhow::{Result, ensure},
     humantime::Duration as DisplayedDuration,
     reqwest::Client,
     std::{
@@ -49,19 +53,37 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub fn new(providers: Vec<HttpProvider>, tfa: TrustFactorAuthority) -> Self {
+    /// Fails when the share and the enabled providers between them ask for a
+    /// threshold nobody could clear, or for one an empty round would clear.
+    pub fn new(providers: Vec<HttpProvider>, tfa: TrustFactorAuthority) -> Result<Self> {
         assert!(!providers.is_empty());
         metrics::register(&providers);
 
+        let share = tfa.trust_share();
+        ensure!(
+            share.is_valid(),
+            "a trust share of {share} asks for none of the trust, or for more than all of it",
+        );
+
+        let total: usize = providers
+            .iter()
+            .map(|provider| tfa.trust_factor(*provider))
+            .sum();
+
         let confirmations = tfa.calc_confirmation_number(&providers);
-        Self {
+        ensure!(
+            confirmations > 0,
+            "a trust share of {share} over a total trust of {total} confirms an address nobody reported",
+        );
+
+        Ok(Self {
             providers,
             tfa,
             confirmations,
             gaps: HashMap::new(),
             honour: ratelimit::Honour::Limits,
             asked: Mutex::new(HashMap::new()),
-        }
+        })
     }
 
     /// Stops honouring the gaps providers ask for. The operator's call, and

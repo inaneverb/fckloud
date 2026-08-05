@@ -3,10 +3,10 @@ use {
         Executable, args,
         build_info::ENV_PREFIX,
         node::{AddrStatus, Manager as NodeManager},
-        pubip::{Resolver, TrustFactorAuthority},
+        pubip::{Resolver, TrustFactorAuthority, TrustShare},
         telemetry::meter,
     },
-    anyhow::{Context as _, Error, Result, bail},
+    anyhow::{Context as _, Error, Result, bail, ensure},
     clap::Args as ClapArgs,
     const_format::concatcp,
     humantime::{Duration as DisplayedDuration, parse_duration},
@@ -40,10 +40,20 @@ pub struct Args {
     )]
     node: String,
 
-    /// Custom confirmation number each IP must reach to consider it confirmed
+    /// Share of the enabled trust an address must gather: 2/3, 75% or 0.75
+    #[arg(
+        long,
+        value_name("SHARE"),
+        env(concatcp!(ENV_PREFIX, "TRUST_SHARE")),
+        hide_env=true,
+    )]
+    trust_share: Option<TrustShare>,
+
+    /// Deprecated, use `--trust-share` instead
     #[arg(
         short,
         long,
+        hide = true,
         value_name("NUMBER"),
         alias("confirm"),
         alias("confirmation"),
@@ -130,14 +140,18 @@ impl Executable for Args {
         assert!(*self.interval >= Self::MIN_INTERVAL);
         assert!(!self.node.is_empty());
 
+        ensure!(
+            self.confirmations.is_none() || self.trust_share.is_none(),
+            "--confirmations cannot be combined with --trust-share, which it replaces"
+        );
+
         if let Some(confirmations) = self.confirmations {
             warn!(
                 confirmations,
                 concat!(
-                    "custom confirmation number detected; ",
-                    "unwise picked such a number may lead to either ",
-                    "an inability to reach consensus for a single IP (if the threshold is too high) ",
-                    "or result in falsely reported IPs being assigned to the node (if the threshold is too low)",
+                    "--confirmations is deprecated, --trust-share replaces it; ",
+                    "an absolute number keeps its value while the providers around it change, ",
+                    "so it quietly stops meaning what it meant when it was chosen",
                 ),
             );
         }
@@ -155,8 +169,12 @@ impl Executable for Args {
             tfa.set_trust_factor(*provider, *trust_factor);
         }
 
+        if let Some(share) = self.trust_share {
+            tfa.set_trust_share(share);
+        }
+
         let mut node = NodeManager::new(&self.node).await?;
-        let mut resolver = Resolver::new(self.providers.enabled.clone(), tfa);
+        let mut resolver = Resolver::new(self.providers.enabled.clone(), tfa)?;
         resolver
             .set_rate_limits(self.providers.rate_limit.iter().copied())
             .set_ignore_rate_limits(self.providers.ignore_rate_limits);

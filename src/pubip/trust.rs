@@ -1,10 +1,14 @@
-use {crate::pubip::HttpProvider, std::collections::HashMap};
+use {
+    crate::pubip::{HttpProvider, TrustShare},
+    std::collections::HashMap,
+};
 
 /// The mutable source of trust factors for every known [`HttpProvider`], and
 /// the arithmetic that turns them into the threshold an address must reach.
 #[derive(Default)]
 pub struct TrustFactorAuthority {
     custom: HashMap<HttpProvider, usize>,
+    share: TrustShare,
 }
 
 impl TrustFactorAuthority {
@@ -33,16 +37,25 @@ impl TrustFactorAuthority {
         self.custom.insert(provider, new_trust_factor);
     }
 
+    /// The share of the total trust an address must gather. Two thirds unless
+    /// the operator said otherwise.
+    pub fn trust_share(&self) -> TrustShare {
+        self.share
+    }
+
+    /// Overwrites the share of the total trust an address must gather.
+    pub fn set_trust_share(&mut self, share: TrustShare) -> &mut Self {
+        self.share = share;
+        self
+    }
+
     /// Calculates and returns the **confirmation number** that must be achieved
     /// by every IP to consider it confirmed.
     ///
-    /// Two thirds of the total trust, rounded up while only two providers are
+    /// The share of the total trust, rounded up while only two providers are
     /// enabled and rounded down once there are three or more, so the threshold
     /// stays reachable without demanding unanimity.
     pub fn calc_confirmation_number(&self, providers: &[HttpProvider]) -> usize {
-        const NUMERATOR: usize = 2;
-        const DENOMINATOR: usize = 3;
-
         let total: usize = providers
             .iter()
             .map(|provider| self.trust_factor(*provider))
@@ -51,8 +64,8 @@ impl TrustFactorAuthority {
         match providers.len() {
             0 => unreachable!("confirmation number is undefined when no providers are given"),
             1 => total,
-            2 => (total * NUMERATOR).div_ceil(DENOMINATOR),
-            3.. => total * NUMERATOR / DENOMINATOR,
+            2 => self.share.ceil_of(total),
+            3.. => self.share.floor_of(total),
         }
     }
 
