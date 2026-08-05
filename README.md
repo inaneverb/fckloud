@@ -99,6 +99,13 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 
 # Changelog
 
+### v1.6.0
+- Every provider carries the rate limit it publishes, and a round skips one whose gap has not elapsed rather than going over it
+- Added `--rate-limit`, which changes the gap a provider asks for, or lifts it when set to zero
+- Added `--ignore-rate-limits`, which asks every provider every round whatever it publishes
+- Added a counter for the rounds that skipped a rate limited provider
+- Removed the "interval could be too short" warning; the gaps are now honoured whatever `--interval` is set to
+
 ### v1.5.0
 :warning: The set of providers asked by default has changed. 
 A node behind an egress allowlist or a NetworkPolicy 

@@ -55,7 +55,7 @@
 
 ## Features
 
-- [ ] Implement "Rate limiters" (see below)
+- [x] Implement "Rate limiters" (see below)
 - [x] Implement "Weighting providers" (see below)
 - [ ] Implement "Dual-stack" (see below)
 - [ ] Implement "Named provider sets" (see below)
