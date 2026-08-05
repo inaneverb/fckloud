@@ -15,6 +15,7 @@ pub enum HttpProvider {
     Ipify,        // https://www.ipify.org
     MyIpCom,      // https://www.myip.com/api-docs
     BigDataCloud, // https://www.bigdatacloud.com/free-api/public-ip-address-api
+    MyIpLa,       // https://www.myip.la
 }
 
 impl fmt::Display for HttpProvider {
@@ -34,6 +35,7 @@ impl HttpProvider {
             Self::Ipify => "api64.ipify.org",
             Self::MyIpCom => "api.myip.com",
             Self::BigDataCloud => "api.bigdatacloud.net",
+            Self::MyIpLa => "api.myip.la",
         }
     }
 
@@ -49,6 +51,7 @@ impl HttpProvider {
             Self::Ipify => "https://api64.ipify.org/?format=json",
             Self::MyIpCom => "https://api.myip.com/",
             Self::BigDataCloud => "https://api.bigdatacloud.net/data/client-ip",
+            Self::MyIpLa => "https://api.myip.la/en?json",
         }
     }
 
@@ -59,7 +62,8 @@ impl HttpProvider {
             | Self::SeeIp
             | Self::Ipify
             | Self::MyIpCom
-            | Self::BigDataCloud => Method::GET,
+            | Self::BigDataCloud
+            | Self::MyIpLa => Method::GET,
         }
     }
 
@@ -71,7 +75,8 @@ impl HttpProvider {
             | Self::SeeIp
             | Self::Ipify
             | Self::MyIpCom
-            | Self::BigDataCloud => true,
+            | Self::BigDataCloud
+            | Self::MyIpLa => true,
         }
     }
 
@@ -80,7 +85,9 @@ impl HttpProvider {
             Self::HttpBin => decode::<HttpBinResponse>(body),
             Self::MyIpWtf => decode::<MyIpWtfResponse>(body),
             Self::BigDataCloud => decode::<BigDataCloudResponse>(body),
-            Self::SeeIp | Self::Ipify | Self::MyIpCom => decode::<IpFieldResponse>(body),
+            Self::SeeIp | Self::Ipify | Self::MyIpCom | Self::MyIpLa => {
+                decode::<IpFieldResponse>(body)
+            }
         }
     }
 }
@@ -155,7 +162,7 @@ mod tests {
 
     // One captured body per provider, trimmed of everything but the fields
     // that matter, so that a provider changing its shape fails here first.
-    const SHAPES: [(HttpProvider, &str); 6] = [
+    const SHAPES: [(HttpProvider, &str); 7] = [
         (HttpProvider::HttpBin, r#"{"origin":"1.2.3.4"}"#),
         (
             HttpProvider::MyIpWtf,
@@ -170,6 +177,10 @@ mod tests {
         (
             HttpProvider::BigDataCloud,
             r#"{"ipString":"1.2.3.4","ipType":"IPv4"}"#,
+        ),
+        (
+            HttpProvider::MyIpLa,
+            r#"{"ip":"1.2.3.4","location":{"country_code":"RS"}}"#,
         ),
     ];
 
