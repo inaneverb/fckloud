@@ -10,10 +10,9 @@
 ## Build
 
 - [x] Support `mise` (`mise.toml`) - https://mise.jdx.dev/
-
-`mise` is the one build entry point. `make` was dropped in v1.2.0, and `just`
-and `task` are not planned - a second runner only splits the truth about how
-this project builds.
+- [ ] ~~Support `make` (`Makefile`)~~ - dropped in v1.2.0
+- [ ] ~~Support `just` (`justfile`)~~ - not planned
+- [ ] ~~Support `task` (`Taskfile.yml`)~~ - not planned
 
 
 ## Deploy
@@ -38,16 +37,17 @@ this project builds.
 
 ## Providers
 
+- [ ] Keep adding a provider backward compatible: a new one must not shift the default set, the confirmation threshold, or the egress a running deployment needs
 - [x] Add provider https://myip.wtf/ (rate: once in 1m)
-- [ ] Add provider https://seeip.org/ (rate: no limits???)
-- [ ] Add provider https://www.myip.com/ (rate: no limits???)
-- [ ] Add provider https://www.ipify.org/ (rate: no limits???)
+- [x] Add provider https://seeip.org/ (rate: no limits???)
+- [x] Add provider https://www.myip.com/ (rate: no limits???)
+- [x] Add provider https://www.ipify.org/ (rate: no limits???)
 - [ ] Add provider https://ifconfig.me/all.json (rate: unknown)
 - [ ] Add provider https://ifconfig.co/ (rate: once in 1m)
-- [ ] Add provider https://www.bigdatacloud.com/free-api/public-ip-address-api (rate: no limits???)
+- [x] Add provider https://www.bigdatacloud.com/free-api/public-ip-address-api (rate: no limits???)
 - [ ] Add provider https://freeipapi.com/ (rate: once in 1s)
 - [ ] Add provider https://api.ident.me/ (rate: unknown)
-- [ ] Add provider https://www.myip.la/ (rate: no limits???)
+- [x] Add provider https://www.myip.la/ (rate: no limits???)
 - [ ] Add provider https://myexternalip.com/ (rate: once in 2s)
 - [ ] Add provider https://icanhazip.com/ (rate: unknown)
 - [ ] Add provider https://checkip.amazonaws.com/ (rate: unknown)

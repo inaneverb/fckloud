@@ -2,10 +2,20 @@
 
 # Providers
 
-- https://httpbin.org/
+- :key: https://www.ipify.org/
+- :key: https://seeip.org/
+- :key: https://www.myip.com/
 - :key: https://myip.wtf/
+- https://www.bigdatacloud.com/free-api/public-ip-address-api
+- https://www.myip.la/
+- :zzz: https://httpbin.org/
 
 Providers with :key: mark has their trust factor 2 and more (medium and higher).
+Providers with :zzz: mark are disabled by default,
+and take part only when named by `--enable`.
+
+`PROVIDERS.md` holds the rest: what each one limits,
+what it has been observed to do, and why it carries the trust factor it does.
 
 # Trust factor and Confirmation threshold
 
@@ -46,10 +56,13 @@ where $C_i^{'}$ is the i-th IP's confirmation bucket,
 and $\delta_{k,i}$ indicates whether provider $k$ has reported the i-th IP or not<sup>2</sup> (either 1 or 0). 
 The i-th IP is confirmed once $C_i^{'} \geq C$.
 
-With the two providers enabled by default — 
-`HttpBin` at trust factor $1$ and `MyIpWtf` at trust factor $2$ — 
-the total trust is $3$, so $C = \lceil 2 \rceil = 2$. 
-`MyIpWtf` alone therefore confirms an address, while `HttpBin` alone does not.
+With the six providers enabled by default — 
+`Ipify` at trust factor $3$, 
+`SeeIp`, `MyIpCom` and `MyIpWtf` at $2$, 
+`BigDataCloud` and `MyIpLa` at $1$ — 
+the total trust is $11$, so $C = \left\lfloor \frac{22}{3} \right\rfloor = 7$. 
+No provider therefore confirms an address alone, 
+and $4$ trust may go missing before a round loses one it would have confirmed.
 
 The value of $P_k$ must be within the range $[1..3]$, where:
 - $1$: Lowest trust; typically assigned to a few providers. 
@@ -85,6 +98,19 @@ or result in falsely reported IPs being assigned to the node (if the threshold i
 </sub>
 
 # Changelog
+
+### v1.5.0
+:warning: The set of providers asked by default has changed. 
+A node behind an egress allowlist or a NetworkPolicy 
+reaches no consensus until the five new hosts are permitted, 
+and a manually pinned `--confirmations` now sits against a total trust of 11 rather than 3.
+
+- Added five providers: `Ipify`, `SeeIp`, `MyIpCom`, `BigDataCloud` and `MyIpLa`
+- `HttpBin` is now disabled by default: it dropped 19% of the cluster's requests over a measured window, and it is the only provider without IPv6
+- Consensus now rests on six providers carrying 11 trust, so no single provider can confirm an address by itself
+- Added `--enable`, which replaces the default set of providers rather than adding to it
+- `--enable`, `--disable` and `--trust-factor` each take a comma-separated list as well as a repeated flag
+- Added `PROVIDERS.md`, where the limits, the observed failure rates and the reasoning behind every trust factor live
 
 ### v1.4.0
 - Added OpenTelemetry tracing over OTLP: one trace per tick, spanning every provider request and both calls to the API server
