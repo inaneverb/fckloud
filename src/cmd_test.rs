@@ -25,7 +25,10 @@ impl Executable for Args {
     // The "main" function for the "test" command.
     // Perpares the Tokio runtime, executes HTTP requests to IP resolvers.
     async fn run(self) -> Result<()> {
-        Resolver::new(self.providers.enabled, TrustFactorAuthority::default())
+        let mut resolver = Resolver::new(self.providers.enabled, TrustFactorAuthority::default());
+        resolver.set_rate_limits(self.providers.rate_limit.iter().copied());
+
+        resolver
             .run()
             .await
             .confirmed

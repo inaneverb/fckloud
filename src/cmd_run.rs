@@ -168,6 +168,7 @@ impl Executable for Args {
 
         let mut node = NodeManager::new(&self.node).await?;
         let mut resolver = Resolver::new(self.providers.enabled.clone(), tfa);
+        resolver.set_rate_limits(self.providers.rate_limit.iter().copied());
 
         node.current_external_ips()
             .await

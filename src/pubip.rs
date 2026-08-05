@@ -68,6 +68,16 @@ impl Resolver {
         self.asked.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// Overwrites the gap a provider asks between two requests. Zero lifts the
+    /// published limit rather than restoring it.
+    pub fn set_rate_limits(
+        &mut self,
+        gaps: impl IntoIterator<Item = (HttpProvider, Duration)>,
+    ) -> &mut Self {
+        self.gaps = gaps.into_iter().collect();
+        self
+    }
+
     /// Overwrites the confirmation number that would otherwise be derived from
     /// the enabled providers' trust factors.
     pub fn set_confirmations(&mut self, confirmations: usize) -> &mut Self {

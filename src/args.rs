@@ -1,13 +1,14 @@
 use {
     crate::build_info::ENV_PREFIX,
     crate::pubip::{HttpProvider, TrustFactorAuthority},
-    anyhow::{Result, anyhow, bail, ensure},
+    anyhow::{Error, Result, anyhow, bail, ensure},
     clap::{
         Args as ClapArgs,
         builder::{PossibleValuesParser, TypedValueParser},
     },
     const_format::concatcp,
-    std::str::FromStr,
+    humantime::parse_duration,
+    std::{str::FromStr, time::Duration as StdDuration},
     strum::{VariantArray, VariantNames},
 };
 
@@ -81,6 +82,18 @@ pub struct OfProviders {
     #[arg(skip)]
     pub enabled: Vec<HttpProvider>,
 
+    /// Custom rate limits of providers, zero to lift one entirely
+    #[arg(
+        short='r',
+        long,
+        value_name("KEY=DURATION"),
+        value_delimiter=',',
+        value_parser=Self::parse_rate_limit_pair,
+        env(concatcp!(ENV_PREFIX, "RATE_LIMIT")),
+        hide_env=true,
+    )]
+    pub rate_limit: Vec<(HttpProvider, StdDuration)>,
+
     /// Custom trust factors of providers (1 - low, 2 - medium, 3 - high)
     #[arg(
         short='f',
@@ -138,23 +151,37 @@ impl OfProviders {
         const MIN: usize = TrustFactorAuthority::LOW;
         const MAX: usize = TrustFactorAuthority::HIG;
 
-        let pos = s
-            .find('=')
-            .or_else(|| s.find(':'))
-            .ok_or_else(|| anyhow!("invalid KEY=VALUE: no `=` found in `{s}`"))?;
+        let (provider, value) = Self::split_pair(s)?;
 
-        let provider_str = &s[..pos];
-        let trust_factor_str = &s[pos + 1..];
-
-        let provider = HttpProvider::from_str(provider_str)
-            .map_err(|_| anyhow!("provider {provider_str} not found"))?;
-
-        let trust_factor = match usize::from_str(trust_factor_str)? {
+        let trust_factor = match usize::from_str(value)? {
             v @ MIN..=MAX => v,
             v => bail!("incorrect trust factor {v}, must be in range [{MIN}..{MAX}]"),
         };
 
         Ok((provider, trust_factor))
+    }
+
+    /// A gap of zero is meaningful and kept: it lifts a published rate limit
+    /// rather than restoring it, which is the escape hatch for a provider whose
+    /// stated limit has moved on without this table.
+    pub fn parse_rate_limit_pair(s: &str) -> Result<(HttpProvider, StdDuration)> {
+        let (provider, value) = Self::split_pair(s)?;
+        let gap = parse_duration(value).map_err(Error::msg)?;
+
+        Ok((provider, gap))
+    }
+
+    fn split_pair(s: &str) -> Result<(HttpProvider, &str)> {
+        let pos = s
+            .find('=')
+            .or_else(|| s.find(':'))
+            .ok_or_else(|| anyhow!("invalid KEY=VALUE: no `=` found in `{s}`"))?;
+
+        let name = &s[..pos];
+        let provider =
+            HttpProvider::from_str(name).map_err(|_| anyhow!("provider {name} not found"))?;
+
+        Ok((provider, &s[pos + 1..]))
     }
 }
 
@@ -256,5 +283,24 @@ mod tests {
             factors.trust_factor,
             vec![(HttpProvider::HttpBin, 3), (HttpProvider::MyIpWtf, 1)],
         );
+
+        let gaps = parse(&["fckloud", "--rate-limit", "MyIpWtf=90s,Ipify=0s"]);
+        assert_eq!(
+            gaps.rate_limit,
+            vec![
+                (HttpProvider::MyIpWtf, StdDuration::from_secs(90)),
+                (HttpProvider::Ipify, StdDuration::ZERO),
+            ],
+        );
+    }
+
+    #[test]
+    fn a_rate_limit_needs_a_known_provider_and_a_duration() {
+        assert!(OfProviders::parse_rate_limit_pair("MyIpWtf=1m").is_ok());
+        assert!(OfProviders::parse_rate_limit_pair("MyIpWtf:1m").is_ok());
+
+        assert!(OfProviders::parse_rate_limit_pair("MyIpWtf").is_err());
+        assert!(OfProviders::parse_rate_limit_pair("Nope=1m").is_err());
+        assert!(OfProviders::parse_rate_limit_pair("MyIpWtf=soon").is_err());
     }
 }
