@@ -1,6 +1,6 @@
 [package]
 name = "fckloud"
-version = "1.9.0"
+version = "1.10.0"
 edition = "2024"
 description = "Gives a Kubernetes node the ExternalIP a cloud provider would have, if there were a cloud provider"
 authors = [
