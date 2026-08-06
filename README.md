@@ -1,5 +1,97 @@
 # fckloud
 
+Gives a Kubernetes node the `ExternalIP` a cloud provider would have given it,
+if there were a cloud provider.
+
+On bare metal there is no cloud controller manager, so `status.addresses` never
+gets an ExternalIP, and everything that reads one — `kubectl get nodes -o wide`,
+ingress controllers, external-dns — sees nothing. One DaemonSet pod per node
+asks the providers below where it lives, weighs their answers by trust factor,
+and patches its own node.
+
+```
+kubectl apply -f https://raw.githubusercontent.com/inaneverb/fckloud/master/deploy/k8s.yaml
+kubectl get nodes -o wide
+```
+
+The kubelet must run with `cloud-provider: external`. Without it the kubelet
+rewrites `status.addresses` on every sync and the patch does not survive.
+
+# Configuration
+
+Every flag but `--dry-run` is also an environment variable: `FCKLOUD_` plus the
+flag in capitals, so `--trust-share` is `FCKLOUD_TRUST_SHARE`. Three commands:
+`run` is the operator, `test` resolves once and prints, `providers` says what is
+known about each provider.
+
+| Flag | Default | What it does |
+|---|---|---|
+| `--node NAME` | required | Node to patch |
+| `--providers NAME,...` | the default set | Providers to ask |
+| `--trust-factor NAME=N` | per provider | Override a trust factor, `1` to `3` |
+| `--trust-share SHARE` | `2/3` | Share of the answering trust an address must gather |
+| `--rate-limit NAME=DUR` | what each publishes | Change a provider's gap, `0s` lifts it |
+| `--ignore-rate-limits` | off | Ask every provider every round |
+| `--removal-grace DUR` | `5m` | How long an unconfirmed address is left alone, or `never` |
+| `--interval DUR` | `1m` | Gap between rounds, `30s` at the shortest |
+| `--dry-run` | off | Decide everything, patch nothing |
+| `-v`, `-vv`, `-vvv` | off | More logs |
+| `--json` | off | Logs as JSON |
+
+`--providers` takes the name of any provider below, `default`, `all`, a trust
+floor (`trust1`, `trust2`, `trust3`, spelled `low`, `med`, `hig` too), or a
+released version such as `v1.10`. Names union and ignore case; a version stands
+alone. `fckloud providers` prints the whole table.
+
+Tracing and metrics go over OTLP and are configured by the standard `OTEL_*`
+variables, not by `FCKLOUD_` ones. Nothing is exported until an endpoint is set.
+
+# Recipes
+
+Pin the set, and no upgrade can add a provider, or a host the node then has to
+be allowed to reach.
+
+```
+fckloud run --node NODE --providers v1.10
+```
+
+Ask only the hosts your egress policy already permits. These three carry 7 trust
+between them, so any two agreeing confirms an address.
+
+```
+fckloud run --node NODE --providers Ipify,SeeIp,MyIpCom
+```
+
+Let one provider outweigh the others.
+
+```
+fckloud run --node NODE --providers Ipify,SeeIp,MyIpLa --trust-factor MyIpLa=3
+```
+
+Demand three quarters of the answering trust instead of two thirds.
+
+```
+fckloud run --node NODE --trust-share 0.75
+```
+
+Keep every address the node has, whatever consensus later says about it.
+
+```
+fckloud run --node NODE --removal-grace never
+```
+
+Watch a whole round decide, with the node left alone.
+
+```
+fckloud run --node NODE --dry-run -v
+```
+
+Poll a provider harder than it asks to be polled.
+
+```
+fckloud run --node NODE --rate-limit MyIpWtf=10s
+```
+
 # Providers
 
 - :key: https://www.ipify.org/
